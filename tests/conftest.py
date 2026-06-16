@@ -75,6 +75,7 @@ class FakeBot:
         self.shard_count = 2
         self.guilds = [object(), object(), object()]
         self.users = [object()] * 5
+        self.cogs: list[Any] = []
 
     def add_listener(self, fn: Any, name: str) -> None:
         self.listeners.setdefault(name, []).append(fn)
@@ -82,8 +83,26 @@ class FakeBot:
     def remove_listener(self, fn: Any, name: str) -> None:
         self.listeners.get(name, []).remove(fn)
 
+    async def setup_hook(self) -> None:  # default no-op, like commands.Bot
+        return None
+
+    async def add_cog(self, cog: Any) -> None:
+        self.cogs.append(cog)
+        await cog.cog_load()  # discord.py invokes cog_load on add_cog
+
     def is_closed(self) -> bool:
         return False
+
+
+@pytest.fixture
+def free_port() -> int:
+    import socket
+
+    sock = socket.socket()
+    sock.bind(("127.0.0.1", 0))
+    port = int(sock.getsockname()[1])
+    sock.close()
+    return port
 
 
 @dataclass(slots=True)
