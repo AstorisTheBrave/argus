@@ -1,0 +1,27 @@
+# Scrape config for Argus.
+#
+# The `cluster` label is emitted by Argus itself on the state gauges (from the
+# cluster_id you pass to Argus(bot, cluster_id=...)). Do NOT also set a
+# `cluster` target label here, or Prometheus will rename this one to
+# `exported_cluster` to avoid the clash.
+#
+# Single process: one target on the bot's metrics port (default 9191).
+# Clustered: list one target per process (each Argus uses a distinct
+# cluster_id, so its gauges carry a distinct `cluster` value). Counter rates
+# aggregate across processes at query time.
+#
+# host.docker.internal resolves to the host from inside the compose network
+# (see extra_hosts in docker-compose.yml), so a bot running on the host is
+# reachable. If the bot runs in compose too, use its service name instead.
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: argus
+    static_configs:
+      - targets:
+          - "host.docker.internal:9191"
+          # clustered: add more processes here
+          # - "host.docker.internal:9192"

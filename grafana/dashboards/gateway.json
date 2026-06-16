@@ -1,0 +1,60 @@
+{
+  "uid": "argus-gateway",
+  "title": "Argus — Gateway",
+  "tags": ["argus", "discord"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "30s",
+  "time": { "from": "now-6h", "to": "now" },
+  "templating": {
+    "list": [
+      {
+        "name": "cluster",
+        "label": "cluster",
+        "type": "query",
+        "datasource": { "type": "prometheus", "uid": "argus-prometheus" },
+        "query": { "query": "label_values(discord_guilds, cluster)", "refId": "A" },
+        "refresh": 2,
+        "includeAll": true,
+        "multi": true,
+        "allValue": ".*",
+        "current": {}
+      }
+    ]
+  },
+  "panels": [
+    {
+      "type": "timeseries",
+      "title": "Gateway events by type",
+      "gridPos": { "h": 9, "w": 24, "x": 0, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "argus-prometheus" },
+      "fieldConfig": { "defaults": { "unit": "ops", "custom": { "drawStyle": "line", "fillOpacity": 10 } }, "overrides": [] },
+      "targets": [
+        { "refId": "A", "datasource": { "type": "prometheus", "uid": "argus-prometheus" }, "expr": "sum by (event) (rate(discord_gateway_events_total[5m]))", "legendFormat": "{{event}}" }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Shard disconnects / reconnects",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 9 },
+      "datasource": { "type": "prometheus", "uid": "argus-prometheus" },
+      "fieldConfig": { "defaults": { "unit": "ops", "custom": { "drawStyle": "line", "fillOpacity": 10 } }, "overrides": [] },
+      "targets": [
+        { "refId": "A", "datasource": { "type": "prometheus", "uid": "argus-prometheus" }, "expr": "sum(rate(discord_shard_disconnects_total[5m]))", "legendFormat": "disconnects" },
+        { "refId": "B", "datasource": { "type": "prometheus", "uid": "argus-prometheus" }, "expr": "sum(rate(discord_shard_reconnects_total[5m]))", "legendFormat": "reconnects" }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Rate-limit warnings & log records",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 9 },
+      "datasource": { "type": "prometheus", "uid": "argus-prometheus" },
+      "fieldConfig": { "defaults": { "unit": "ops", "custom": { "drawStyle": "line", "fillOpacity": 10 } }, "overrides": [] },
+      "targets": [
+        { "refId": "A", "datasource": { "type": "prometheus", "uid": "argus-prometheus" }, "expr": "rate(discord_ratelimits_total[5m])", "legendFormat": "ratelimits" },
+        { "refId": "B", "datasource": { "type": "prometheus", "uid": "argus-prometheus" }, "expr": "sum by (level) (rate(discord_log_records_total[5m]))", "legendFormat": "logs {{level}}" }
+      ]
+    }
+  ]
+}

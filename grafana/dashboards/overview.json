@@ -1,0 +1,95 @@
+{
+  "uid": "argus-overview",
+  "title": "Argus — Overview",
+  "tags": ["argus", "discord"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "30s",
+  "time": { "from": "now-6h", "to": "now" },
+  "templating": {
+    "list": [
+      {
+        "name": "cluster",
+        "label": "cluster",
+        "type": "query",
+        "datasource": { "type": "prometheus", "uid": "argus-prometheus" },
+        "query": { "query": "label_values(discord_guilds, cluster)", "refId": "A" },
+        "refresh": 2,
+        "includeAll": true,
+        "multi": true,
+        "allValue": ".*",
+        "current": {}
+      }
+    ]
+  },
+  "panels": [
+    {
+      "type": "stat",
+      "title": "Argus up",
+      "gridPos": { "h": 4, "w": 4, "x": 0, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "argus-prometheus" },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" },
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [{ "type": "value", "options": { "1": { "text": "UP" }, "0": { "text": "DOWN" } } }],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "red", "value": null }, { "color": "green", "value": 1 }] }
+        },
+        "overrides": []
+      },
+      "targets": [
+        { "refId": "A", "datasource": { "type": "prometheus", "uid": "argus-prometheus" }, "expr": "max(argus_up)" }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Shards connected / configured",
+      "gridPos": { "h": 4, "w": 6, "x": 4, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "argus-prometheus" },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "targets": [
+        { "refId": "A", "datasource": { "type": "prometheus", "uid": "argus-prometheus" }, "expr": "sum(discord_shards_connected{cluster=~\"$cluster\"})", "legendFormat": "connected" },
+        { "refId": "B", "datasource": { "type": "prometheus", "uid": "argus-prometheus" }, "expr": "sum(discord_shards_configured{cluster=~\"$cluster\"})", "legendFormat": "configured" }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Guilds",
+      "gridPos": { "h": 4, "w": 5, "x": 10, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "argus-prometheus" },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "targets": [
+        { "refId": "A", "datasource": { "type": "prometheus", "uid": "argus-prometheus" }, "expr": "sum(discord_guilds{cluster=~\"$cluster\"})" }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Cached users",
+      "gridPos": { "h": 4, "w": 5, "x": 15, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "argus-prometheus" },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "targets": [
+        { "refId": "A", "datasource": { "type": "prometheus", "uid": "argus-prometheus" }, "expr": "sum(discord_cached_users{cluster=~\"$cluster\"})" }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Shard latency",
+      "gridPos": { "h": 9, "w": 24, "x": 0, "y": 4 },
+      "datasource": { "type": "prometheus", "uid": "argus-prometheus" },
+      "fieldConfig": { "defaults": { "unit": "s", "custom": { "drawStyle": "line", "fillOpacity": 10 } }, "overrides": [] },
+      "targets": [
+        { "refId": "A", "datasource": { "type": "prometheus", "uid": "argus-prometheus" }, "expr": "discord_shard_latency_seconds", "legendFormat": "shard {{shard}}" }
+      ]
+    },
+    {
+      "type": "table",
+      "title": "Bot info",
+      "gridPos": { "h": 5, "w": 24, "x": 0, "y": 13 },
+      "datasource": { "type": "prometheus", "uid": "argus-prometheus" },
+      "targets": [
+        { "refId": "A", "datasource": { "type": "prometheus", "uid": "argus-prometheus" }, "expr": "discord_bot_info", "format": "table", "instant": true }
+      ]
+    }
+  ]
+}

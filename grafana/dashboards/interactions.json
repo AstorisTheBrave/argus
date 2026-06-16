@@ -1,0 +1,77 @@
+{
+  "uid": "argus-interactions",
+  "title": "Argus — Interactions",
+  "tags": ["argus", "discord"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "30s",
+  "time": { "from": "now-6h", "to": "now" },
+  "templating": {
+    "list": [
+      {
+        "name": "cluster",
+        "label": "cluster",
+        "type": "query",
+        "datasource": { "type": "prometheus", "uid": "argus-prometheus" },
+        "query": { "query": "label_values(discord_guilds, cluster)", "refId": "A" },
+        "refresh": 2,
+        "includeAll": true,
+        "multi": true,
+        "allValue": ".*",
+        "current": {}
+      }
+    ]
+  },
+  "panels": [
+    {
+      "type": "timeseries",
+      "title": "Interaction rate by type",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "argus-prometheus" },
+      "fieldConfig": { "defaults": { "unit": "reqps", "custom": { "drawStyle": "line", "fillOpacity": 10 } }, "overrides": [] },
+      "targets": [
+        { "refId": "A", "datasource": { "type": "prometheus", "uid": "argus-prometheus" }, "expr": "sum by (type) (rate(discord_interactions_total[5m]))", "legendFormat": "{{type}}" }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "App command rate by status",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "argus-prometheus" },
+      "fieldConfig": { "defaults": { "unit": "reqps", "custom": { "drawStyle": "line", "fillOpacity": 10 } }, "overrides": [] },
+      "targets": [
+        { "refId": "A", "datasource": { "type": "prometheus", "uid": "argus-prometheus" }, "expr": "sum by (status) (rate(discord_app_commands_total[5m]))", "legendFormat": "{{status}}" }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "App command error %",
+      "gridPos": { "h": 8, "w": 6, "x": 0, "y": 8 },
+      "datasource": { "type": "prometheus", "uid": "argus-prometheus" },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 1 }, { "color": "red", "value": 5 }] }
+        },
+        "overrides": []
+      },
+      "targets": [
+        { "refId": "A", "datasource": { "type": "prometheus", "uid": "argus-prometheus" }, "expr": "100 * sum(rate(discord_app_commands_total{status=\"error\"}[5m])) / clamp_min(sum(rate(discord_app_commands_total[5m])), 1)" }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Command duration quantiles",
+      "gridPos": { "h": 8, "w": 18, "x": 6, "y": 8 },
+      "datasource": { "type": "prometheus", "uid": "argus-prometheus" },
+      "fieldConfig": { "defaults": { "unit": "s", "custom": { "drawStyle": "line", "fillOpacity": 10 } }, "overrides": [] },
+      "targets": [
+        { "refId": "A", "datasource": { "type": "prometheus", "uid": "argus-prometheus" }, "expr": "histogram_quantile(0.50, sum by (le) (rate(discord_app_command_duration_seconds_bucket[5m])))", "legendFormat": "p50" },
+        { "refId": "B", "datasource": { "type": "prometheus", "uid": "argus-prometheus" }, "expr": "histogram_quantile(0.95, sum by (le) (rate(discord_app_command_duration_seconds_bucket[5m])))", "legendFormat": "p95" },
+        { "refId": "C", "datasource": { "type": "prometheus", "uid": "argus-prometheus" }, "expr": "histogram_quantile(0.99, sum by (le) (rate(discord_app_command_duration_seconds_bucket[5m])))", "legendFormat": "p99" }
+      ]
+    }
+  ]
+}
