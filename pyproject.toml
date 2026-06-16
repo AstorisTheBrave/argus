@@ -1,0 +1,71 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "argus-dpy"
+dynamic = ["version"]
+description = "Operational Prometheus/OpenTelemetry metrics for discord.py bots, in one line."
+readme = "README.md"
+requires-python = ">=3.10"
+license = "MIT"
+keywords = ["discord", "discord.py", "prometheus", "metrics", "observability", "opentelemetry"]
+dependencies = [
+    "discord.py>=2.4,<3",
+    "prometheus-client>=0.20",
+    "aiohttp>=3.11,<4",
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Framework :: AsyncIO",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: System :: Monitoring",
+    "Typing :: Typed",
+]
+
+[project.optional-dependencies]
+otlp = ["opentelemetry-sdk", "opentelemetry-exporter-otlp-proto-grpc"]
+clickhouse = ["clickhouse-connect[async]"]
+
+[dependency-groups]
+dev = [
+    "ruff",
+    "mypy",
+    "pytest",
+    "pytest-asyncio",
+    "pytest-aiohttp",
+    "pytest-cov",
+]
+
+[tool.hatch.version]
+path = "src/argus/__init__.py"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/argus"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+testpaths = ["tests"]
+
+[tool.mypy]
+strict = true
+python_version = "3.10"
+files = ["src", "tests"]
+
+[tool.ruff]
+target-version = "py310"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "ASYNC"]
+
+[tool.coverage.run]
+source = ["src/argus"]
+branch = true
