@@ -39,6 +39,7 @@ from argus.core.collector import MetricRegistry
 from argus.core.hooks import Registration, register
 from argus.core.instrumentation import Instrumentation
 from argus.core.metrics import bot_info_values, define_metrics
+from argus.history.sink import EventSink, NullSink
 
 log = logging.getLogger("argus")
 
@@ -53,11 +54,21 @@ class ArgusCog(commands.Cog):
         self.names = define_metrics(self.registry, bot, self.config)
         self.adapter = PrometheusAdapter()
         self.registry.attach(self.adapter)
-        self.instrumentation = Instrumentation(self.registry, self.names, self.config)
+        self.sink: EventSink = self._build_sink()
+        self.instrumentation = Instrumentation(
+            self.registry, self.names, self.config, sink=self.sink
+        )
         self.registry.set_info(self.names.bot_info, bot_info_values())
         self._runner: Any = None
         # Register listeners synchronously; additive, safe before the bot logs in.
         self._registration: Registration = register(bot, self.instrumentation)
+
+    def _build_sink(self) -> EventSink:
+        """Select the analytical sink. NullSink unless per-guild analytics is on.
+
+        The ClickHouse sink is selected here once it lands (Phase 4).
+        """
+        return NullSink()
 
     async def cog_load(self) -> None:
         from argus import __version__
@@ -98,6 +109,7 @@ class ArgusCog(commands.Cog):
         if self._runner is not None:
             await self._runner.cleanup()
             self._runner = None
+        await self.sink.aclose()
 
 
 class Argus:
