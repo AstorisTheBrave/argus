@@ -24,12 +24,18 @@ data routes (SSE, analytics) are added by later phases.
 
 from __future__ import annotations
 
+import asyncio
+import json
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from aiohttp import web
 
+from argus.dashboard.snapshot import build_snapshot
+
 if TYPE_CHECKING:
+    from prometheus_client import CollectorRegistry
+
     from argus.config import ArgusConfig
     from argus.exposition.server import DashboardRegistrar
 
@@ -37,7 +43,11 @@ STATIC_DIR = Path(__file__).parent / "static"
 
 
 def register_dashboard(
-    config: ArgusConfig, *, version: str, analytics_enabled: bool = False
+    config: ArgusConfig,
+    *,
+    registry: CollectorRegistry,
+    version: str,
+    analytics_enabled: bool = False,
 ) -> DashboardRegistrar:
     """Build a registrar that mounts the SPA + /api/config onto an app."""
     if config.dashboard_path == config.metrics_path:
@@ -60,9 +70,28 @@ def register_dashboard(
         }
         return web.json_response(payload)
 
+    async def stream(request: web.Request) -> web.StreamResponse:
+        response = web.StreamResponse(
+            headers={
+                "Content-Type": "text/event-stream",
+                "Cache-Control": "no-cache",
+                "Connection": "keep-alive",
+            }
+        )
+        await response.prepare(request)
+        try:
+            while True:
+                payload = json.dumps(build_snapshot(registry))
+                await response.write(f"data: {payload}\n\n".encode())
+                await asyncio.sleep(config.dashboard_interval)
+        except (ConnectionResetError, asyncio.CancelledError):
+            pass
+        return response
+
     def registrar(app: web.Application) -> None:
         mount = config.dashboard_path.rstrip("/")
         app.router.add_get("/api/config", api_config)
+        app.router.add_get("/api/stream", stream)
         assets_dir = STATIC_DIR / "assets"
         if assets_dir.is_dir():
             app.router.add_static(f"{mount}/assets/", assets_dir)

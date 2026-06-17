@@ -24,7 +24,11 @@ def _make_app(config: ArgusConfig) -> Any:
                 frozenset({"/healthz", config.metrics_path}),
             )
         )
-    registrar = register_dashboard(config, version=argus.__version__) if config.dashboard else None
+    registrar = (
+        register_dashboard(config, registry=registry, version=argus.__version__)
+        if config.dashboard
+        else None
+    )
     return build_app(registry, config.metrics_path, dashboard=registrar, middlewares=middlewares)
 
 
@@ -69,5 +73,6 @@ def test_path_collision_raises() -> None:
     with pytest.raises(ValueError, match="collides"):
         register_dashboard(
             ArgusConfig.resolve(dashboard_path="/metrics", environ={}),
+            registry=CollectorRegistry(),
             version=argus.__version__,
         )

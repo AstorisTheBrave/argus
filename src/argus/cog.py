@@ -68,7 +68,9 @@ class ArgusCog(commands.Cog):
         dashboard = None
         middlewares = []
         if self.config.dashboard:
-            dashboard = register_dashboard(self.config, version=__version__)
+            dashboard = register_dashboard(
+                self.config, registry=self.adapter.registry, version=__version__
+            )
             if self.config.dashboard_auth_token is not None:
                 middlewares.append(
                     make_auth_middleware(
