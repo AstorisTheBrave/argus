@@ -136,6 +136,13 @@ List every port in `prometheus/prometheus.yml`. State gauges carry the distinct
 `cluster` label; counter rates aggregate across the fleet at query time. See
 `examples/clustered_bot.py`.
 
-## License
+## Licensing
 
-MIT — see [LICENSE](LICENSE).
+Argus is licensed under **AGPL-3.0-or-later** — see [LICENSE](LICENSE).
+
+Because the AGPL treats network use as distribution, anyone who runs a modified
+version of Argus as a network service must make their modified source available
+to that service's users.
+
+Contributions are accepted under the Developer Certificate of Origin; see
+[CONTRIBUTING.md](CONTRIBUTING.md).
