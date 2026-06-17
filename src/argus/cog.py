@@ -60,15 +60,30 @@ class ArgusCog(commands.Cog):
         )
         self.registry.set_info(self.names.bot_info, bot_info_values())
         self._runner: Any = None
+        self._analytics_client: Any = None
         # Register listeners synchronously; additive, safe before the bot logs in.
         self._registration: Registration = register(bot, self.instrumentation)
 
     def _build_sink(self) -> EventSink:
-        """Select the analytical sink. NullSink unless per-guild analytics is on.
+        """Select the analytical sink. NullSink unless per-guild analytics is on."""
+        if self.config.enable_per_guild and self.config.clickhouse_dsn:
+            from argus.history.clickhouse import ClickHouseSink
 
-        The ClickHouse sink is selected here once it lands (Phase 4).
-        """
+            return ClickHouseSink(self.config.clickhouse_dsn)
         return NullSink()
+
+    async def _build_analytics(self) -> Any:
+        """Build the analytics read layer when per-guild analytics is configured."""
+        if not (self.config.enable_per_guild and self.config.clickhouse_dsn):
+            return None
+        import clickhouse_connect  # type: ignore[import-not-found]
+
+        from argus.history.query import AnalyticsQuery
+
+        self._analytics_client = await clickhouse_connect.get_async_client(
+            dsn=self.config.clickhouse_dsn
+        )
+        return AnalyticsQuery(self._analytics_client)
 
     async def cog_load(self) -> None:
         from argus import __version__
@@ -79,8 +94,12 @@ class ArgusCog(commands.Cog):
         dashboard = None
         middlewares = []
         if self.config.dashboard:
+            analytics = await self._build_analytics()
             dashboard = register_dashboard(
-                self.config, registry=self.adapter.registry, version=__version__
+                self.config,
+                registry=self.adapter.registry,
+                version=__version__,
+                analytics=analytics,
             )
             if self.config.dashboard_auth_token is not None:
                 middlewares.append(
@@ -110,6 +129,9 @@ class ArgusCog(commands.Cog):
             await self._runner.cleanup()
             self._runner = None
         await self.sink.aclose()
+        if self._analytics_client is not None:
+            await self._analytics_client.close()
+            self._analytics_client = None
 
 
 class Argus:

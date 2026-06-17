@@ -38,8 +38,13 @@ if TYPE_CHECKING:
 
     from argus.config import ArgusConfig
     from argus.exposition.server import DashboardRegistrar
+    from argus.history.query import AnalyticsQuery
 
 STATIC_DIR = Path(__file__).parent / "static"
+
+
+def _dumps(obj: Any) -> str:
+    return json.dumps(obj, default=str)
 
 
 def register_dashboard(
@@ -47,11 +52,13 @@ def register_dashboard(
     *,
     registry: CollectorRegistry,
     version: str,
-    analytics_enabled: bool = False,
+    analytics: AnalyticsQuery | None = None,
 ) -> DashboardRegistrar:
-    """Build a registrar that mounts the SPA + /api/config onto an app."""
+    """Build a registrar that mounts the SPA + /api/config (+ analytics) onto an app."""
     if config.dashboard_path == config.metrics_path:
         raise ValueError(f"dashboard_path {config.dashboard_path!r} collides with metrics_path")
+
+    analytics_enabled = analytics is not None
 
     async def index(_request: web.Request) -> web.StreamResponse:
         index_html = STATIC_DIR / "index.html"
@@ -88,10 +95,38 @@ def register_dashboard(
             pass
         return response
 
+    def _guard_analytics() -> str:
+        # Fail closed: the per-guild path is sensitive and must not be served
+        # without a token (the auth middleware only gates when one is set).
+        if config.dashboard_auth_token is None:
+            raise web.HTTPForbidden(text="analytics requires dashboard_auth_token\n")
+        return ""
+
+    async def analytics_volume(request: web.Request) -> web.StreamResponse:
+        assert analytics is not None
+        _guard_analytics()
+        guild_id = request.query.get("guild_id", "")
+        if not guild_id:
+            raise web.HTTPBadRequest(text="guild_id required\n")
+        rows = await analytics.interaction_volume(guild_id)
+        return web.json_response({"rows": [list(row) for row in rows]}, dumps=_dumps)
+
+    async def analytics_top_commands(request: web.Request) -> web.StreamResponse:
+        assert analytics is not None
+        _guard_analytics()
+        guild_id = request.query.get("guild_id", "")
+        if not guild_id:
+            raise web.HTTPBadRequest(text="guild_id required\n")
+        rows = await analytics.top_commands(guild_id)
+        return web.json_response({"rows": [list(row) for row in rows]}, dumps=_dumps)
+
     def registrar(app: web.Application) -> None:
         mount = config.dashboard_path.rstrip("/")
         app.router.add_get("/api/config", api_config)
         app.router.add_get("/api/stream", stream)
+        if analytics is not None:
+            app.router.add_get("/api/analytics/interaction-volume", analytics_volume)
+            app.router.add_get("/api/analytics/top-commands", analytics_top_commands)
         assets_dir = STATIC_DIR / "assets"
         if assets_dir.is_dir():
             app.router.add_static(f"{mount}/assets/", assets_dir)
