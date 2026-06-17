@@ -1,0 +1,17 @@
+/* ============================================================
+   Nimble Design System · global entry point.
+   Consumers link THIS one file. Import order only; no rules here.
+   ============================================================ */
+
+@import "./tokens/fonts.css";
+@import "./tokens/colors.css";
+@import "./tokens/presets.css";
+@import "./tokens/backgrounds.css";
+@import "./tokens/typography.css";
+@import "./tokens/typefaces.css";
+@import "./tokens/spacing.css";
+@import "./tokens/glass.css";
+@import "./tokens/elevation.css";
+@import "./tokens/motion.css";
+@import "./tokens/base.css";
+@import "./tokens/responsive.css";

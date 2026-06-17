@@ -1,0 +1,48 @@
+/* ============================================================
+   Nimble · Elevation / Shadow tokens
+   Layered box-shadows (lift + ambient). Glass surfaces add an
+   inset top highlight via --glass-inset on top of these.
+   These are SHADOWS, not blur · never conflate the two.
+   ============================================================ */
+
+:root {
+  --shadow-0: none;
+  --shadow-1:
+    0 1px 2px rgba(8, 12, 22, 0.08),
+    0 1px 1px rgba(8, 12, 22, 0.06);
+  --shadow-2:
+    0 2px 8px rgba(8, 12, 22, 0.10),
+    0 1px 2px rgba(8, 12, 22, 0.08);
+  --shadow-3:
+    0 8px 24px rgba(8, 12, 22, 0.12),
+    0 2px 6px rgba(8, 12, 22, 0.08);
+  --shadow-4:
+    0 18px 48px rgba(8, 12, 22, 0.16),
+    0 6px 14px rgba(8, 12, 22, 0.10);
+  --shadow-5:
+    0 32px 80px rgba(8, 12, 22, 0.22),
+    0 10px 24px rgba(8, 12, 22, 0.12);
+
+  /* Inner top highlight that sells the "lit glass edge" look.
+     Pair with a glass border for the lensing rim. */
+  --glass-inset: inset 0 1px 0 var(--glass-highlight);
+}
+
+.nimble-dark,
+[data-theme="dark"] {
+  --shadow-1:
+    0 1px 2px rgba(0, 0, 0, 0.40),
+    0 1px 1px rgba(0, 0, 0, 0.30);
+  --shadow-2:
+    0 2px 8px rgba(0, 0, 0, 0.46),
+    0 1px 2px rgba(0, 0, 0, 0.34);
+  --shadow-3:
+    0 8px 24px rgba(0, 0, 0, 0.52),
+    0 2px 6px rgba(0, 0, 0, 0.36);
+  --shadow-4:
+    0 18px 48px rgba(0, 0, 0, 0.58),
+    0 6px 14px rgba(0, 0, 0, 0.40);
+  --shadow-5:
+    0 32px 80px rgba(0, 0, 0, 0.64),
+    0 10px 24px rgba(0, 0, 0, 0.44);
+}

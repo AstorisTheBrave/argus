@@ -1,0 +1,50 @@
+/* ============================================================
+   Nimble · Typography tokens
+   Geist (sans) for everything UI; Geist Mono for code/labels.
+   Fluid display sizes via clamp(); fixed UI sizes.
+   ============================================================ */
+
+:root {
+  /* Families */
+  --font-sans: "Geist", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "Geist Mono", ui-monospace, "SF Mono", "Cascadia Code", monospace;
+  /* Headings / hero. Defaults to the body sans; swap via .nimble-type-* presets. */
+  --font-display: var(--font-sans);
+
+  /* Weights */
+  --weight-regular: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+  --weight-bold: 700;
+
+  /* Type scale · UI (fixed) */
+  --text-caption: 0.75rem;   /* 12px */
+  --text-label: 0.8125rem;   /* 13px */
+  --text-body-sm: 0.875rem;  /* 14px */
+  --text-body: 0.9375rem;    /* 15px */
+  --text-body-lg: 1.0625rem; /* 17px */
+
+  /* Type scale · Headings */
+  --text-title-sm: 1.25rem;  /* 20px */
+  --text-title: 1.5rem;      /* 24px */
+  --text-title-lg: 1.9375rem;/* 31px */
+
+  /* Type scale · Display
+     (for fluid hero text, apply clamp() inline at the call site) */
+  --text-display-sm: 3rem;     /* 48px */
+  --text-display: 4.25rem;     /* 68px */
+  --text-display-lg: 6rem;     /* 96px */
+
+  /* Line heights */
+  --leading-tight: 1.06;
+  --leading-snug: 1.22;
+  --leading-normal: 1.5;
+  --leading-relaxed: 1.65;
+
+  /* Tracking */
+  --tracking-tight: -0.022em;
+  --tracking-snug: -0.012em;
+  --tracking-normal: 0em;
+  --tracking-wide: 0.04em;
+  --tracking-caps: 0.12em;
+}

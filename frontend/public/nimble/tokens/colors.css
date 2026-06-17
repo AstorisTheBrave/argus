@@ -1,0 +1,83 @@
+/* ============================================================
+   Nimble · Color tokens
+   Light is the :root default. Dark applies via .nimble-dark,
+   [data-theme="dark"], and prefers-color-scheme: dark.
+   Glass tints/borders are theme-scoped; the raw palette is not.
+   ============================================================ */
+
+:root {
+  /* --- Raw brand palette (theme-independent) --- */
+  --azure-400: #5b9dff;
+  --azure-500: #2e7df6;
+  --azure-600: #1c63d6;
+  --iris-400: #a78bfa;
+  --iris-500: #8b5cf6;
+  --iris-600: #6d3fe0;
+
+  /* --- Accent (semantic, theme-aware) --- */
+  --accent-primary: var(--azure-500);
+  --accent-secondary: var(--iris-500);
+  --accent-primary-contrast: #ffffff;
+
+  /* --- Status (light) --- */
+  --status-success: #1f9d55;
+  --status-warning: #b86e00;
+  --status-error: #d92d3f;
+  --status-info: var(--azure-500);
+
+  /* --- Solid surfaces (light) --- */
+  --surface-bg: #e9edf4;          /* page canvas · something for glass to refract */
+  --surface-elevated: #ffffff;    /* opaque cards / fallback fill */
+  --surface-overlay: rgba(18, 22, 30, 0.34); /* scrim behind sheets/dialogs */
+
+  /* --- Text (light) --- */
+  --text-primary: #0e1116;
+  --text-secondary: rgba(14, 17, 22, 0.64);
+  --text-tertiary: rgba(14, 17, 22, 0.42);
+  --text-inverted: #ffffff;
+
+  /* --- Glass · light theme --- */
+  --glass-tint-light: rgba(255, 255, 255, 0.46);
+  --glass-tint-dark: rgba(20, 20, 28, 0.46);
+  --glass-border-light: rgba(255, 255, 255, 0.70);
+  --glass-border-dark: rgba(255, 255, 255, 0.16);
+
+  /* Active aliases the components actually read */
+  --glass-tint: var(--glass-tint-light);
+  --glass-border: var(--glass-border-light);
+  --glass-highlight: rgba(255, 255, 255, 0.55); /* inner top rim */
+  --glass-tint-strong: rgba(255, 255, 255, 0.66); /* low-power solid fill */
+  --on-glass: var(--text-primary);
+}
+
+/* ---- Dark theme ---- */
+.nimble-dark,
+[data-theme="dark"] {
+  --accent-primary: var(--azure-400);
+  --accent-secondary: var(--iris-400);
+  --accent-primary-contrast: #07101f;
+
+  --status-success: #34d399;
+  --status-warning: #fbbf24;
+  --status-error: #fb7185;
+  --status-info: var(--azure-400);
+
+  --surface-bg: #0b0d12;
+  --surface-elevated: #14171f;
+  --surface-overlay: rgba(2, 4, 9, 0.56);
+
+  --text-primary: #f4f6fb;
+  --text-secondary: rgba(244, 246, 251, 0.68);
+  --text-tertiary: rgba(244, 246, 251, 0.44);
+  --text-inverted: #0b0d12;
+
+  --glass-tint: var(--glass-tint-dark);
+  --glass-border: var(--glass-border-dark);
+  --glass-highlight: rgba(255, 255, 255, 0.14);
+  --glass-tint-strong: rgba(28, 30, 40, 0.74);
+  --on-glass: var(--text-primary);
+}
+
+/* Dark mode is opt-in: add .nimble-dark or [data-theme="dark"] high
+   in the tree (the demo ships a toggle). Kept explicit · not tied to
+   prefers-color-scheme · so theme is predictable and controllable. */

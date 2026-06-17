@@ -1,0 +1,68 @@
+/* ============================================================
+   Nimble · Webfonts
+   Geist + Geist Mono (variable), self-hosted. OFL-1.1.
+   Source: https://fonts.google.com/specimen/Geist
+   ============================================================ */
+
+@font-face {
+  font-family: "Geist";
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url("../assets/fonts/Geist-Variable.ttf") format("truetype-variations");
+}
+
+@font-face {
+  font-family: "Geist Mono";
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url("../assets/fonts/GeistMono-Variable.ttf") format("truetype-variations");
+}
+
+/* --- Display / personality faces (opt-in via .nimble-type-* presets) --- */
+@font-face {
+  font-family: "Space Grotesk";
+  font-style: normal;
+  font-weight: 300 700;
+  font-display: swap;
+  src: url("../assets/fonts/SpaceGrotesk-Variable.ttf") format("truetype-variations");
+}
+@font-face {
+  font-family: "Instrument Serif";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("../assets/fonts/InstrumentSerif-Regular.ttf") format("truetype");
+}
+@font-face {
+  font-family: "Finger Paint";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("../assets/fonts/FingerPaint-Regular.ttf") format("truetype");
+}
+
+/* --- Extended family (opt-in via .nimble-type-* presets) --- */
+@font-face { font-family: "Bricolage Grotesque"; font-style: normal; font-weight: 200 800; font-display: swap; src: url("../assets/fonts/BricolageGrotesque-Variable.ttf") format("truetype-variations"); }
+@font-face { font-family: "Hanken Grotesk"; font-style: normal; font-weight: 100 900; font-display: swap; src: url("../assets/fonts/HankenGrotesk-Variable.ttf") format("truetype-variations"); }
+@font-face { font-family: "Newsreader"; font-style: normal; font-weight: 200 800; font-display: swap; src: url("../assets/fonts/Newsreader-Variable.ttf") format("truetype-variations"); }
+@font-face { font-family: "Archivo"; font-style: normal; font-weight: 100 900; font-display: swap; src: url("../assets/fonts/Archivo-Variable.ttf") format("truetype-variations"); }
+@font-face { font-family: "Sora"; font-style: normal; font-weight: 100 800; font-display: swap; src: url("../assets/fonts/Sora-Variable.ttf") format("truetype-variations"); }
+@font-face { font-family: "Caveat"; font-style: normal; font-weight: 400 700; font-display: swap; src: url("../assets/fonts/Caveat-Variable.ttf") format("truetype-variations"); }
+
+/* --- Library v2: editorial serifs, modern sans, display & mono (25 total) --- */
+@font-face { font-family: "Playfair Display"; font-style: normal; font-weight: 400 900; font-display: swap; src: url("../assets/fonts/PlayfairDisplay-Variable.ttf") format("truetype-variations"); }
+@font-face { font-family: "Fraunces"; font-style: normal; font-weight: 100 900; font-display: swap; src: url("../assets/fonts/Fraunces-Variable.ttf") format("truetype-variations"); }
+@font-face { font-family: "Lora"; font-style: normal; font-weight: 400 700; font-display: swap; src: url("../assets/fonts/Lora-Variable.ttf") format("truetype-variations"); }
+@font-face { font-family: "Cormorant Garamond"; font-style: normal; font-weight: 300 700; font-display: swap; src: url("../assets/fonts/CormorantGaramond-Variable.ttf") format("truetype-variations"); }
+@font-face { font-family: "DM Serif Display"; font-style: normal; font-weight: 400; font-display: swap; src: url("../assets/fonts/DMSerifDisplay-Regular.ttf") format("truetype"); }
+@font-face { font-family: "Plus Jakarta Sans"; font-style: normal; font-weight: 200 800; font-display: swap; src: url("../assets/fonts/PlusJakartaSans-Variable.ttf") format("truetype-variations"); }
+@font-face { font-family: "Manrope"; font-style: normal; font-weight: 200 800; font-display: swap; src: url("../assets/fonts/Manrope-Variable.ttf") format("truetype-variations"); }
+@font-face { font-family: "DM Sans"; font-style: normal; font-weight: 100 900; font-display: swap; src: url("../assets/fonts/DMSans-Variable.ttf") format("truetype-variations"); }
+@font-face { font-family: "Work Sans"; font-style: normal; font-weight: 100 900; font-display: swap; src: url("../assets/fonts/WorkSans-Variable.ttf") format("truetype-variations"); }
+@font-face { font-family: "Outfit"; font-style: normal; font-weight: 100 900; font-display: swap; src: url("../assets/fonts/Outfit-Variable.ttf") format("truetype-variations"); }
+@font-face { font-family: "Gabarito"; font-style: normal; font-weight: 400 900; font-display: swap; src: url("../assets/fonts/Gabarito-Variable.ttf") format("truetype-variations"); }
+@font-face { font-family: "Syne"; font-style: normal; font-weight: 400 800; font-display: swap; src: url("../assets/fonts/Syne-Variable.ttf") format("truetype-variations"); }
+@font-face { font-family: "Unbounded"; font-style: normal; font-weight: 200 900; font-display: swap; src: url("../assets/fonts/Unbounded-Variable.ttf") format("truetype-variations"); }
+@font-face { font-family: "JetBrains Mono"; font-style: normal; font-weight: 100 800; font-display: swap; src: url("../assets/fonts/JetBrainsMono-Variable.ttf") format("truetype-variations"); }

@@ -1,0 +1,76 @@
+/* ============================================================
+   Nimble · Backgrounds (accent-aware)
+   Apply ONE .nimble-bg-* class on the page element. Each backdrop
+   is built from the ACTIVE accent tokens (via color-mix in oklab,
+   so blends stay vibrant instead of muddy) over the mode-aware
+   --surface-bg base · so a warm accent yields a warm backdrop and
+   a cool accent a cool one. They harmonise with any preset for free.
+
+   Layering model (per the mesh-gradient pattern): each layer is a
+   soft accent "blob" fading to transparent; stacked blobs overlap
+   and blend over the neutral surface. Keep foreground glass on top.
+   ============================================================ */
+
+/* Flagship aurora mesh · primary + secondary + a soft pool. Default pick. */
+.nimble-bg-aurora {
+  background:
+    radial-gradient(115% 115% at 12% 8%, color-mix(in oklab, var(--accent-primary) 40%, transparent) 0%, transparent 46%),
+    radial-gradient(105% 105% at 88% 16%, color-mix(in oklab, var(--accent-secondary) 36%, transparent) 0%, transparent 50%),
+    radial-gradient(135% 135% at 62% 102%, color-mix(in oklab, var(--accent-primary) 24%, transparent) 0%, transparent 56%),
+    var(--surface-bg);
+  background-attachment: fixed;
+}
+
+/* Denser 4-blob mesh · richer, more movement. */
+.nimble-bg-mesh {
+  background:
+    radial-gradient(60% 60% at 18% 22%, color-mix(in oklab, var(--accent-secondary) 42%, transparent) 0%, transparent 55%),
+    radial-gradient(58% 58% at 84% 16%, color-mix(in oklab, var(--accent-primary) 40%, transparent) 0%, transparent 52%),
+    radial-gradient(70% 70% at 74% 90%, color-mix(in oklab, var(--accent-secondary) 30%, transparent) 0%, transparent 58%),
+    radial-gradient(64% 64% at 22% 84%, color-mix(in oklab, var(--accent-primary) 28%, transparent) 0%, transparent 56%),
+    var(--surface-bg);
+  background-attachment: fixed;
+}
+
+/* Spotlight · one calm glow from the top, lots of breathing room. */
+.nimble-bg-spotlight {
+  background:
+    radial-gradient(90% 70% at 50% -12%, color-mix(in oklab, var(--accent-primary) 34%, transparent) 0%, transparent 62%),
+    radial-gradient(70% 60% at 88% 108%, color-mix(in oklab, var(--accent-secondary) 22%, transparent) 0%, transparent 60%),
+    var(--surface-bg);
+  background-attachment: fixed;
+}
+
+/* Dawn · diagonal accent sweep, soft and directional. */
+.nimble-bg-dawn {
+  background:
+    linear-gradient(150deg,
+      color-mix(in oklab, var(--accent-secondary) 30%, var(--surface-bg)) 0%,
+      var(--surface-bg) 46%,
+      color-mix(in oklab, var(--accent-primary) 26%, var(--surface-bg)) 100%);
+  background-attachment: fixed;
+}
+
+/* Veil · barely-there accent wash; closest to a plain surface. */
+.nimble-bg-veil {
+  background:
+    radial-gradient(120% 90% at 80% 0%, color-mix(in oklab, var(--accent-primary) 16%, transparent) 0%, transparent 55%),
+    var(--surface-bg);
+  background-attachment: fixed;
+}
+
+/* Solid · flat surface, no accent wash. */
+.nimble-bg-solid { background: var(--surface-bg); }
+
+/* Grain · the aurora mesh with a fine, desaturated noise texture on top.
+   Accent-aware like the rest; the grain adds a tactile, "photographic" feel. */
+.nimble-bg-grain {
+  background:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)' opacity='0.05'/%3E%3C/svg%3E"),
+    radial-gradient(115% 115% at 12% 8%, color-mix(in oklab, var(--accent-primary) 40%, transparent) 0%, transparent 46%),
+    radial-gradient(105% 105% at 88% 16%, color-mix(in oklab, var(--accent-secondary) 36%, transparent) 0%, transparent 50%),
+    radial-gradient(135% 135% at 62% 102%, color-mix(in oklab, var(--accent-primary) 24%, transparent) 0%, transparent 56%),
+    var(--surface-bg);
+  background-repeat: repeat, no-repeat, no-repeat, no-repeat, no-repeat;
+  background-attachment: fixed;
+}

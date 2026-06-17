@@ -1,0 +1,34 @@
+/* ============================================================
+   Nimble · Glass & Blur tokens
+   ONE backdrop-filter per view. blur-lg (20px) is the ceiling.
+   blur-none is the low-power / reduced-transparency fallback.
+   ============================================================ */
+
+:root {
+  --blur-none: 0px;
+  --blur-sm: 8px;
+  --blur-md: 14px;  /* default glass layer */
+  --blur-lg: 20px;  /* hard ceiling · never exceed */
+
+  /* The single composed filter components paint with.
+     Saturate lifts colour that blur tends to wash out. */
+  --glass-blur: var(--blur-md);
+  --glass-saturate: 180%;
+  --glass-filter: saturate(var(--glass-saturate)) blur(var(--glass-blur)); /* @kind other */
+}
+
+/* Low-power / reduced-transparency: kill blur, keep a solid tint
+   at the same visual weight. Apply .low-power high in the tree. */
+.low-power {
+  --glass-blur: var(--blur-none);
+  --glass-filter: none; /* @kind other */
+  --glass-tint: var(--glass-tint-strong);
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  :root {
+    --glass-blur: var(--blur-none);
+    --glass-filter: none; /* @kind other */
+    --glass-tint: var(--glass-tint-strong);
+  }
+}

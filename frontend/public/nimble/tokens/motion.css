@@ -1,0 +1,44 @@
+/* ============================================================
+   Nimble · Motion tokens
+   Spring presets are stored as discrete stiffness/damping props
+   for Framer Motion (read them in JS). CSS gets durations +
+   an easing that approximates the springs for transitions.
+   NEVER animate backdrop-filter/filter · transform & opacity only.
+   ============================================================ */
+
+:root {
+  /* Durations */
+  --duration-fast: 150ms;  /* @kind other */
+  --duration-base: 250ms;  /* @kind other */
+  --duration-slow: 400ms;  /* @kind other */
+
+  /* Easing */
+  --easing-out: cubic-bezier(0.16, 1, 0.3, 1);      /* @kind other */
+  --easing-standard: cubic-bezier(0.4, 0, 0.2, 1);  /* @kind other */
+
+  /* Spring presets · consume in Framer Motion as
+     { type: "spring", stiffness, damping } */
+  --spring-quick-stiffness: 400;   /* @kind other */
+  --spring-quick-damping: 28;      /* @kind other */
+  --spring-bounce-stiffness: 250;  /* @kind other */
+  --spring-bounce-damping: 18;     /* @kind other */
+  --spring-slow-stiffness: 120;    /* @kind other */
+  --spring-slow-damping: 22;       /* @kind other */
+
+  /* CSS transition shorthands tuned to feel spring-like */
+  --transition-quick: transform var(--duration-fast) var(--easing-out),
+                      opacity var(--duration-fast) var(--easing-out); /* @kind other */
+  --transition-base: transform var(--duration-base) var(--easing-out),
+                     opacity var(--duration-base) var(--easing-out); /* @kind other */
+}
+
+/* All motion collapses to instant/fade when the user asks for less. */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --duration-fast: 1ms; /* @kind other */
+    --duration-base: 1ms; /* @kind other */
+    --duration-slow: 1ms; /* @kind other */
+    --transition-quick: opacity 120ms linear; /* @kind other */
+    --transition-base: opacity 120ms linear; /* @kind other */
+  }
+}

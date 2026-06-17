@@ -1,0 +1,91 @@
+/* ============================================================
+   Nimble · Responsive & touch layer
+   Device-friendly defaults shared by every consumer: comfortable
+   touch targets on coarse pointers, notch/home-indicator safe-area
+   helpers, dynamic-viewport height, and small-screen safety. Loaded
+   last so it can layer over the base. Mobile-first, content-driven.
+
+   Standards applied:
+     · iOS HIG 44pt / Material 48dp touch targets (on coarse pointers)
+     · WCAG 2.5.8 / 2.5.5 target size
+     · 16px+ form fields to stop iOS focus-zoom
+     · env(safe-area-inset-*) for notch + home indicator
+     · 100dvh so mobile browser chrome doesn't clip full-height apps
+   ============================================================ */
+
+:root {
+  /* Comfortable / large hit areas */
+  --tap-min: 44px;          /* Apple HIG */
+  --tap-lg: 48px;           /* Material */
+  /* Safe-area insets (0 on devices without a notch) */
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+}
+
+/* Remove the 300ms tap delay + grey tap flash on touch UIs */
+* { -webkit-tap-highlight-color: transparent; }
+a, button, [role="button"], label, summary, select, input, textarea { touch-action: manipulation; }
+
+/* Honour the notch in landscape for every layout, for free. Side insets
+   only — top/bottom are handled by each full-height app shell so scrolling
+   pages keep their natural flow. */
+body {
+  padding-left: var(--safe-left);
+  padding-right: var(--safe-right);
+}
+
+/* Media never forces horizontal overflow */
+img, video, canvas { max-width: 100%; }
+
+/* ---- Coarse pointer (touch) devices: enforce comfortable hit areas.
+   Mouse/trackpad (fine pointer) keeps each design's native sizing. ---- */
+@media (pointer: coarse) {
+  button,
+  [role="button"],
+  input[type="button"],
+  input[type="submit"],
+  input[type="reset"],
+  select,
+  summary {
+    min-height: var(--tap-min);
+  }
+  button,
+  [role="button"],
+  input[type="button"],
+  input[type="submit"],
+  input[type="reset"],
+  summary {
+    min-width: var(--tap-min);
+  }
+  /* 16px+ keeps iOS Safari from auto-zooming when a field is focused */
+  input, select, textarea { font-size: max(16px, 1em); }
+}
+
+/* ---- Safe-area utilities (add to a full-bleed root / sticky bar) ---- */
+.nimble-safe-area {
+  padding-top: var(--safe-top);
+  padding-right: var(--safe-right);
+  padding-bottom: var(--safe-bottom);
+  padding-left: var(--safe-left);
+}
+.nimble-safe-top { padding-top: var(--safe-top); }
+.nimble-safe-bottom { padding-bottom: var(--safe-bottom); }
+.nimble-safe-x { padding-left: var(--safe-left); padding-right: var(--safe-right); }
+
+/* Viewport-height helpers that respect mobile browser chrome.
+   Prefer svh for full-height app shells: it equals the *small* viewport
+   (toolbars visible), so the layout fits on load and never reflows as the
+   address bar retracts. Reserve dvh for full-screen overlays/modals that
+   should track the live viewport. 100vh is the fallback for Safari < 15.4. */
+.nimble-svh { min-height: 100vh; min-height: 100svh; }
+.nimble-svh-fixed { height: 100vh; height: 100svh; }
+.nimble-dvh { min-height: 100vh; min-height: 100dvh; }
+
+/* Prevent accidental sideways scroll on phones. `clip` (not `hidden`)
+   so it doesn't turn the root into a scroll container and break
+   position: sticky in Safari; `hidden` is the fallback for Safari < 16. */
+@media (max-width: 640px) {
+  html, body { overflow-x: hidden; overflow-x: clip; }
+}

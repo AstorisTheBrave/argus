@@ -41,6 +41,11 @@ coverage.xml
 # --- Brainstorm / scratch ---
 .superpowers/
 
+# --- Frontend (built bundle is produced by the packaging build hook) ---
+frontend/node_modules/
+frontend/dist/
+src/argus/dashboard/static/assets/
+
 # --- IDE / OS ---
 .idea/
 .vscode/

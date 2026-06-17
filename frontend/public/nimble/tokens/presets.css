@@ -1,0 +1,249 @@
+/* ============================================================
+   Nimble · Color presets ("accent themes")
+   Layer ONE .nimble-theme-* class on the same element as your
+   light/dark scope (usually <html>). Presets only remap the
+   ACCENT + status-info tokens · the glass tint stays neutral so
+   any accent reads correctly on the surface. Each preset is a
+   harmonious pair (primary → secondary) that blends in the
+   gradients used for art tiles, avatars and progress.
+
+   Default (no class) = Maximalist (azure → iris).
+   Pickers should default to "maximalist".
+   ============================================================ */
+
+/* ---- Maximalist · azure → iris (the Nimble default, vivid) ---- */
+.nimble-theme-maximalist {
+  --accent-primary: #2e7df6;
+  --accent-secondary: #8b5cf6;
+  --accent-primary-contrast: #ffffff;
+  --status-info: #2e7df6;
+}
+.nimble-theme-maximalist.nimble-dark,
+.nimble-theme-maximalist[data-theme="dark"] {
+  --accent-primary: #5b9dff;
+  --accent-secondary: #a78bfa;
+  --accent-primary-contrast: #07101f;
+  --status-info: #5b9dff;
+}
+
+/* ---- Minimalist · monochrome graphite ⇄ platinum ---- */
+.nimble-theme-minimal {
+  --accent-primary: #1b1e26;
+  --accent-secondary: #5b6472;
+  --accent-primary-contrast: #ffffff;
+  --status-info: #1b1e26;
+}
+.nimble-theme-minimal.nimble-dark,
+.nimble-theme-minimal[data-theme="dark"] {
+  --accent-primary: #c2c8d2;   /* muted silver · not stark white, keeps the quiet minimalist vibe */
+  --accent-secondary: #7d8694;
+  --accent-primary-contrast: #0b0d12;
+  --status-info: #c2c8d2;
+}
+
+/* ---- Jewel · emerald → amethyst (deep, luxe) ---- */
+.nimble-theme-jewel {
+  --accent-primary: #0e9f6e;
+  --accent-secondary: #9333ea;
+  --accent-primary-contrast: #ffffff;
+  --status-info: #0e9f6e;
+}
+.nimble-theme-jewel.nimble-dark,
+.nimble-theme-jewel[data-theme="dark"] {
+  --accent-primary: #34d399;
+  --accent-secondary: #c084fc;
+  --accent-primary-contrast: #052016;
+  --status-info: #34d399;
+}
+
+/* ---- Pastel · lavender → mint (soft, airy) ---- */
+.nimble-theme-pastel {
+  --accent-primary: #7c6cf0;     /* deepened for AA on light */
+  --accent-secondary: #14b8a6;
+  --accent-primary-contrast: #ffffff;
+  --status-info: #7c6cf0;
+}
+.nimble-theme-pastel.nimble-dark,
+.nimble-theme-pastel[data-theme="dark"] {
+  --accent-primary: #a78bfa;
+  --accent-secondary: #5eead4;
+  --accent-primary-contrast: #140c2e;
+  --status-info: #a78bfa;
+}
+
+/* ---- Sunset · coral → amber (warm maximalist) ---- */
+.nimble-theme-sunset {
+  --accent-primary: #ef5d3a;
+  --accent-secondary: #f5a524;
+  --accent-primary-contrast: #ffffff;
+  --status-info: #ef5d3a;
+}
+.nimble-theme-sunset.nimble-dark,
+.nimble-theme-sunset[data-theme="dark"] {
+  --accent-primary: #fb7c5c;
+  --accent-secondary: #fbbf24;
+  --accent-primary-contrast: #2a0d05;
+  --status-info: #fb7c5c;
+}
+
+/* ---- Cyber · cyan → magenta (neon, pops on dark) ---- */
+.nimble-theme-cyber {
+  --accent-primary: #0a93ac;
+  --accent-secondary: #c81fa6;
+  --accent-primary-contrast: #ffffff;
+  --status-info: #0a93ac;
+}
+.nimble-theme-cyber.nimble-dark,
+.nimble-theme-cyber[data-theme="dark"] {
+  --accent-primary: #22d3ee;
+  --accent-secondary: #ec4dd0;
+  --accent-primary-contrast: #04141a;
+  --status-info: #22d3ee;
+}
+
+/* ---- Command · blurple → magenta (community / gaming / "stealth pro") ---- */
+.nimble-theme-command {
+  --accent-primary: #5865f2;
+  --accent-secondary: #eb459e;
+  --accent-primary-contrast: #ffffff;
+  --status-info: #5865f2;
+}
+.nimble-theme-command.nimble-dark,
+.nimble-theme-command[data-theme="dark"] {
+  --accent-primary: #7983f5;
+  --accent-secondary: #f368b0;
+  --accent-primary-contrast: #0a0c16;
+  --status-info: #7983f5;
+}
+
+/* ---- Earth · forest → terracotta (organic / wellness / soft luxury) ---- */
+.nimble-theme-earth {
+  --accent-primary: #1b3a2c;
+  --accent-secondary: #c25a3c;
+  --accent-primary-contrast: #f7f4ef;
+  --status-info: #1b3a2c;
+}
+.nimble-theme-earth.nimble-dark,
+.nimble-theme-earth[data-theme="dark"] {
+  --accent-primary: #6fae8c;
+  --accent-secondary: #e0825f;
+  --accent-primary-contrast: #0c1611;
+  --status-info: #6fae8c;
+}
+
+/* ============================================================
+   Surface temperature · neutral canvas tint (independent axis)
+   Nimble's default surfaces are cool blue-grey. Layer ONE
+   .nimble-surface-* class to retune the *neutral* canvas + text
+   for warmer or truly-neutral niches (organic, wellness, print).
+   Combines with any accent preset and glass theme.
+   ============================================================ */
+
+/* Warm · cream canvas, warm near-black ink (organic / soft luxury) */
+.nimble-surface-warm {
+  --surface-bg: #f7f4ef;
+  --surface-elevated: #fffdf9;
+  --surface-overlay: rgba(28, 26, 23, 0.5);
+  --text-primary: #1c1a17;
+  --text-secondary: rgba(28, 26, 23, 0.66);
+  --text-tertiary: rgba(28, 26, 23, 0.44);
+  --glass-tint: rgba(255, 253, 249, 0.5);
+  --glass-tint-strong: rgba(247, 244, 239, 0.72);
+  --glass-border: rgba(120, 100, 70, 0.16);
+}
+.nimble-surface-warm.nimble-dark,
+.nimble-surface-warm[data-theme="dark"] {
+  --surface-bg: #18140f;
+  --surface-elevated: #221d16;
+  --surface-overlay: rgba(0, 0, 0, 0.6);
+  --text-primary: #f4efe7;
+  --text-secondary: rgba(244, 239, 231, 0.66);
+  --text-tertiary: rgba(244, 239, 231, 0.42);
+  --glass-tint: rgba(40, 33, 25, 0.5);
+  --glass-tint-strong: rgba(48, 40, 30, 0.74);
+  --glass-border: rgba(255, 240, 210, 0.14);
+}
+
+/* Neutral · true grey canvas, no blue cast (print / documentation) */
+.nimble-surface-neutral {
+  --surface-bg: #f4f4f5;
+  --surface-elevated: #ffffff;
+  --text-primary: #18181b;
+  --text-secondary: rgba(24, 24, 27, 0.64);
+  --text-tertiary: rgba(24, 24, 27, 0.42);
+  --glass-border: rgba(24, 24, 27, 0.12);
+}
+.nimble-surface-neutral.nimble-dark,
+.nimble-surface-neutral[data-theme="dark"] {
+  --surface-bg: #0c0c0d;
+  --surface-elevated: #18181b;
+  --text-primary: #fafafa;
+  --text-secondary: rgba(250, 250, 250, 0.64);
+  --text-tertiary: rgba(250, 250, 250, 0.42);
+  --glass-border: rgba(250, 250, 250, 0.12);
+}
+
+/* ============================================================
+   Glass-surface themes · independent of accent presets.
+   Layer ONE .nimble-glass-* class on the same element as your
+   light/dark scope to retune the GLASS itself: tint opacity,
+   rim highlight, and the solid fallback weight. Combine freely
+   with any accent preset (e.g. class="nimble-dark nimble-theme-jewel nimble-glass-clear").
+   ============================================================ */
+
+/* ---- Clear · airy, low tint, lets more of the backdrop through ---- */
+.nimble-glass-clear {
+  --glass-tint: rgba(255, 255, 255, 0.26);
+  --glass-border: rgba(255, 255, 255, 0.60);
+  --glass-highlight: rgba(255, 255, 255, 0.50);
+  --glass-tint-strong: rgba(255, 255, 255, 0.50);
+}
+.nimble-glass-clear.nimble-dark,
+.nimble-glass-clear[data-theme="dark"] {
+  --glass-tint: rgba(20, 20, 28, 0.30);
+  --glass-border: rgba(255, 255, 255, 0.12);
+  --glass-highlight: rgba(255, 255, 255, 0.12);
+  --glass-tint-strong: rgba(28, 30, 40, 0.58);
+}
+
+/* ---- Dense · milky, frostier, stronger rim (great for low-contrast backdrops) ---- */
+.nimble-glass-dense {
+  --glass-tint: rgba(255, 255, 255, 0.66);
+  --glass-border: rgba(255, 255, 255, 0.88);
+  --glass-highlight: rgba(255, 255, 255, 0.70);
+  --glass-tint-strong: rgba(255, 255, 255, 0.82);
+}
+.nimble-glass-dense.nimble-dark,
+.nimble-glass-dense[data-theme="dark"] {
+  --glass-tint: rgba(22, 24, 32, 0.68);
+  --glass-border: rgba(255, 255, 255, 0.24);
+  --glass-highlight: rgba(255, 255, 255, 0.18);
+  --glass-tint-strong: rgba(30, 32, 44, 0.86);
+}
+
+/* ---- Tinted · the glass picks up the active accent (coloured glass) ---- */
+.nimble-glass-tinted {
+  --glass-tint: color-mix(in srgb, var(--accent-primary) 16%, rgba(255, 255, 255, 0.52));
+  --glass-border: color-mix(in srgb, var(--accent-primary) 34%, rgba(255, 255, 255, 0.6));
+  --glass-highlight: color-mix(in srgb, var(--accent-primary) 24%, rgba(255, 255, 255, 0.55));
+  --glass-tint-strong: color-mix(in srgb, var(--accent-primary) 22%, rgba(255, 255, 255, 0.66));
+}
+.nimble-glass-tinted.nimble-dark,
+.nimble-glass-tinted[data-theme="dark"] {
+  --glass-tint: color-mix(in srgb, var(--accent-primary) 22%, rgba(18, 20, 28, 0.5));
+  --glass-border: color-mix(in srgb, var(--accent-primary) 40%, rgba(255, 255, 255, 0.14));
+  --glass-highlight: color-mix(in srgb, var(--accent-primary) 26%, rgba(255, 255, 255, 0.14));
+  --glass-tint-strong: color-mix(in srgb, var(--accent-primary) 30%, rgba(28, 30, 40, 0.72));
+}
+
+/* ---- Obsidian · smoky dark glass in BOTH modes (overlays, media, hero chrome) ---- */
+.nimble-glass-obsidian {
+  --glass-tint: rgba(14, 16, 22, 0.52);
+  --glass-border: rgba(255, 255, 255, 0.16);
+  --glass-highlight: rgba(255, 255, 255, 0.16);
+  --glass-tint-strong: rgba(18, 20, 28, 0.78);
+  --on-glass: #f4f6fb;
+  --text-primary: #f4f6fb;
+  --text-secondary: rgba(244, 246, 251, 0.68);
+  --text-tertiary: rgba(244, 246, 251, 0.44);
+}

@@ -1,0 +1,61 @@
+/* ============================================================
+   Nimble · Base layer
+   Light-touch resets + the canonical glass utility built
+   strictly from tokens. Layer order matters:
+   background → backdrop-filter blur → rgba tint → border rim
+   → inner highlight → content.
+   ============================================================ */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-sans);
+  font-size: var(--text-body);
+  line-height: var(--leading-normal);
+  letter-spacing: var(--tracking-snug);
+  color: var(--text-primary);
+  background-color: var(--surface-bg);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* Numeric tabular figures + slightly tighter default for UI */
+.nimble-mono {
+  font-family: var(--font-mono);
+  font-feature-settings: "ss01" 1;
+}
+
+/* --- The one glass surface --- */
+.nimble-glass {
+  position: relative;
+  background: var(--glass-tint);
+  -webkit-backdrop-filter: var(--glass-filter);
+  backdrop-filter: var(--glass-filter);
+  border: var(--border-hairline) solid var(--glass-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-3), var(--glass-inset);
+  color: var(--on-glass);
+}
+
+/* When glass surfaces stack in one scroll container, only the
+   topmost should blur. Add .nimble-glass--flat to the others:
+   tint + rim only, no backdrop-filter. */
+.nimble-glass--flat {
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  background: var(--glass-tint-strong);
+}
+
+/* Opaque elevated surface (no transparency) */
+.nimble-surface {
+  background: var(--surface-elevated);
+  border: var(--border-hairline) solid color-mix(in srgb, var(--text-primary) 8%, transparent);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-2);
+  color: var(--text-primary);
+}
