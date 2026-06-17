@@ -60,3 +60,36 @@ async def test_cog_can_be_added_directly(free_port: int) -> None:
                 assert resp.status == 200
     finally:
         await cog.cog_unload()
+
+
+async def test_dashboard_served_by_default(free_port: int) -> None:
+    bot = FakeBot()
+    cog = ArgusCog(bot, ArgusConfig.resolve(host="127.0.0.1", port=free_port, environ={}))
+    await cog.cog_load()
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(f"http://127.0.0.1:{free_port}/") as resp:
+                assert resp.status == 200
+            async with session.get(f"http://127.0.0.1:{free_port}/api/config") as resp:
+                assert resp.status == 200
+                assert (await resp.json())["namespace"] == "discord"
+            async with session.get(f"http://127.0.0.1:{free_port}/metrics") as resp:
+                assert resp.status == 200
+    finally:
+        await cog.cog_unload()
+
+
+async def test_dashboard_can_be_disabled(free_port: int) -> None:
+    bot = FakeBot()
+    cog = ArgusCog(
+        bot, ArgusConfig.resolve(host="127.0.0.1", port=free_port, dashboard=False, environ={})
+    )
+    await cog.cog_load()
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(f"http://127.0.0.1:{free_port}/") as resp:
+                assert resp.status == 404
+            async with session.get(f"http://127.0.0.1:{free_port}/metrics") as resp:
+                assert resp.status == 200
+    finally:
+        await cog.cog_unload()

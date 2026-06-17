@@ -60,9 +60,29 @@ class ArgusCog(commands.Cog):
         self._registration: Registration = register(bot, self.instrumentation)
 
     async def cog_load(self) -> None:
+        from argus import __version__
+        from argus.dashboard.auth import make_auth_middleware
+        from argus.dashboard.server import register_dashboard
         from argus.exposition.server import build_app, start_server
 
-        app = build_app(self.adapter.registry, self.config.metrics_path)
+        dashboard = None
+        middlewares = []
+        if self.config.dashboard:
+            dashboard = register_dashboard(self.config, version=__version__)
+            if self.config.dashboard_auth_token is not None:
+                middlewares.append(
+                    make_auth_middleware(
+                        self.config.dashboard_auth_token,
+                        frozenset({"/healthz", self.config.metrics_path}),
+                    )
+                )
+
+        app = build_app(
+            self.adapter.registry,
+            self.config.metrics_path,
+            dashboard=dashboard,
+            middlewares=middlewares,
+        )
         self._runner = await start_server(app, self.config.host, self.config.port)
         log.info(
             "argus serving metrics on %s:%d%s",
