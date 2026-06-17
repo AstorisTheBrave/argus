@@ -44,6 +44,29 @@ from argus import ArgusCog
 await bot.add_cog(ArgusCog(bot))
 ```
 
+## Built-in dashboard
+
+`Argus(bot)` also serves a live web dashboard at `/` on the same port (a React
+SPA bundled into the wheel, so no extra setup). Open `http://localhost:9191/`.
+It reads metrics live (Server-Sent Events, with polling fallback) and has
+sections for an overview, interactions, the gateway, your Grafana dashboards,
+and per-guild analytics.
+
+```python
+Argus(
+    bot,
+    dashboard=True,                 # default; set False to disable
+    dashboard_auth_token="secret",  # optional; gates the dashboard + APIs
+    grafana_url="http://localhost:3000",  # optional; embeds your Grafana boards
+)
+```
+
+> **Security:** with no token, the dashboard exposes the same operational data
+> as `/metrics` does, to anyone who can reach the port. Set `dashboard_auth_token`
+> (and put the bot behind a proxy or bind to localhost) for anything public. The
+> per-guild analytics section is served only when `enable_per_guild` plus a
+> `clickhouse_dsn` are set, and it fails closed without a token.
+
 ## Dashboards in one command
 
 ```bash

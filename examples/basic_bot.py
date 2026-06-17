@@ -19,12 +19,12 @@ intents.members = True  # makes discord_cached_users meaningful
 
 bot = commands.AutoShardedBot(command_prefix="!", intents=intents)
 
-Argus(bot)  # the whole integration; serves /metrics on :9191
+Argus(bot)  # the whole integration; serves /metrics and the dashboard on :9191
 
 
 @bot.event
 async def on_ready() -> None:
-    print(f"logged in as {bot.user} — metrics on http://localhost:9191/metrics")
+    print(f"logged in as {bot.user}. dashboard on http://localhost:9191/")
 
 
 if __name__ == "__main__":

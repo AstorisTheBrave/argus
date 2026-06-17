@@ -48,6 +48,13 @@ path = "src/argus/__init__.py"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/argus"]
+artifacts = ["src/argus/dashboard/static/**"]
+
+[tool.hatch.build.targets.wheel.hooks.custom]
+path = "hatch_build.py"
+
+[tool.hatch.build.targets.sdist]
+artifacts = ["src/argus/dashboard/static/**"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
