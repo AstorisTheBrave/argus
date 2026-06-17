@@ -31,15 +31,17 @@ from argus.core.collector import MetricDef
 
 class Adapter(ABC):
     @abstractmethod
-    def add_metric(self, metric: MetricDef) -> None: ...
+    def add_metric(self, metric: MetricDef) -> None:
+        """Register a metric definition with the backend."""
 
     @abstractmethod
-    def inc(
-        self, name: str, labels: Mapping[str, str] | None = None, amount: float = 1.0
-    ) -> None: ...
+    def inc(self, name: str, labels: Mapping[str, str] | None = None, amount: float = 1.0) -> None:
+        """Increment a counter."""
 
     @abstractmethod
-    def observe(self, name: str, value: float, labels: Mapping[str, str] | None = None) -> None: ...
+    def observe(self, name: str, value: float, labels: Mapping[str, str] | None = None) -> None:
+        """Record a histogram observation."""
 
     @abstractmethod
-    def set_info(self, name: str, info: Mapping[str, str]) -> None: ...
+    def set_info(self, name: str, info: Mapping[str, str]) -> None:
+        """Set the static info labels."""

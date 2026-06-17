@@ -24,6 +24,7 @@ carries a ``guild_id``/``user_id``/``channel_id`` label (invariant 2).
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
@@ -102,8 +103,9 @@ def define_metrics(registry: MetricRegistry, bot: Any, config: ArgusConfig) -> M
     def shard_latency() -> list[GaugeSample]:
         out: list[GaugeSample] = []
         for shard_id, latency in getattr(bot, "latencies", []):
-            if latency == latency:  # NaN guard: NaN != NaN
-                out.append(GaugeSample((str(shard_id),), float(latency)))
+            value = float(latency)
+            if not math.isnan(value):  # latency is NaN before a shard is ready
+                out.append(GaugeSample((str(shard_id),), value))
         return out
 
     def shards_connected() -> list[GaugeSample]:

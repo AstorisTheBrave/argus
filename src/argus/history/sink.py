@@ -38,7 +38,8 @@ class EventSink(ABC):
     """A destination for per-guild analytical events."""
 
     @abstractmethod
-    async def record(self, event: Event) -> None: ...
+    async def record(self, event: Event) -> None:
+        """Enqueue one event for the analytical store."""
 
     async def aclose(self) -> None:
         """Flush and release resources. Default no-op."""
@@ -82,7 +83,8 @@ class BatchingSink(EventSink):
             self._task = asyncio.create_task(self._run())
 
     @abstractmethod
-    async def _flush(self, batch: list[Event]) -> None: ...
+    async def _flush(self, batch: list[Event]) -> None:
+        """Write a batch of events to the backing store."""
 
     async def _run(self) -> None:
         while not (self._closed and self._queue.empty()):
