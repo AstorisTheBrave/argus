@@ -33,8 +33,6 @@ from aiohttp.typedefs import Middleware
 
 Handler = Callable[[web.Request], Awaitable[web.StreamResponse]]
 
-_OPEN_PATHS = frozenset({"/healthz"})
-
 _BEARER_PREFIX = "Bearer "
 
 
@@ -45,12 +43,18 @@ def _extract_token(request: web.Request) -> str | None:
     return request.query.get("token")
 
 
-def make_auth_middleware(token: str | None) -> Middleware:
-    """Build an aiohttp middleware enforcing ``token`` (or a no-op if None)."""
+def make_auth_middleware(
+    token: str | None, open_paths: frozenset[str] = frozenset({"/healthz"})
+) -> Middleware:
+    """Build an aiohttp middleware enforcing ``token`` (or a no-op if None).
+
+    ``open_paths`` are never gated (health checks, and typically the metrics
+    endpoint so a Prometheus scraper need not carry the token).
+    """
 
     @web.middleware
     async def middleware(request: web.Request, handler: Handler) -> web.StreamResponse:
-        if token is None or request.path in _OPEN_PATHS:
+        if token is None or request.path in open_paths:
             return await handler(request)
         provided = _extract_token(request)
         if provided is not None and hmac.compare_digest(provided, token):

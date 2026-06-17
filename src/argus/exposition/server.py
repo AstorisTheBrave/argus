@@ -24,12 +24,14 @@ shutdown. ``web.run_app`` is deliberately not used (it would own the loop).
 
 from __future__ import annotations
 
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Sequence
 
 from aiohttp import web
+from aiohttp.typedefs import Middleware
 from prometheus_client import CONTENT_TYPE_LATEST, CollectorRegistry, generate_latest
 
 Handler = Callable[[web.Request], Awaitable[web.StreamResponse]]
+DashboardRegistrar = Callable[[web.Application], None]
 
 
 def make_metrics_handler(registry: CollectorRegistry) -> Handler:
@@ -46,11 +48,24 @@ async def health(_request: web.Request) -> web.StreamResponse:
     return web.Response(text="ok\n")
 
 
-def build_app(registry: CollectorRegistry, metrics_path: str = "/metrics") -> web.Application:
-    """Pure factory: build the aiohttp app serving ``metrics_path`` and ``/healthz``."""
-    app = web.Application()
+def build_app(
+    registry: CollectorRegistry,
+    metrics_path: str = "/metrics",
+    *,
+    dashboard: DashboardRegistrar | None = None,
+    middlewares: Sequence[Middleware] = (),
+) -> web.Application:
+    """Pure factory: build the aiohttp app.
+
+    Always serves ``metrics_path`` and ``/healthz``. If ``dashboard`` is given it
+    is called with the app to register the dashboard routes. ``middlewares`` are
+    applied to the whole app (used for optional dashboard auth).
+    """
+    app = web.Application(middlewares=list(middlewares))
     app.router.add_get(metrics_path, make_metrics_handler(registry))
     app.router.add_get("/healthz", health)
+    if dashboard is not None:
+        dashboard(app)
     return app
 
 
