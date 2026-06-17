@@ -76,3 +76,38 @@ def test_config_is_frozen() -> None:
     cfg = ArgusConfig.resolve(environ={})
     with pytest.raises(FrozenInstanceError):
         cfg.port = 1  # type: ignore[misc]
+
+
+def test_dashboard_defaults() -> None:
+    cfg = ArgusConfig.resolve(environ={})
+    assert cfg.dashboard is True
+    assert cfg.dashboard_path == "/"
+    assert cfg.dashboard_interval == 5
+    assert cfg.dashboard_auth_token is None
+    assert cfg.grafana_url is None
+    assert cfg.clickhouse_dsn is None
+
+
+def test_dashboard_env_mapping() -> None:
+    env = {
+        "ARGUS_DASHBOARD": "false",
+        "ARGUS_DASHBOARD_PATH": "ui",
+        "ARGUS_DASHBOARD_INTERVAL": "10",
+        "ARGUS_DASHBOARD_AUTH_TOKEN": "secret",
+        "ARGUS_GRAFANA_URL": "http://grafana:3000",
+        "ARGUS_CLICKHOUSE_DSN": "http://ch:8123",
+    }
+    cfg = ArgusConfig.resolve(environ=env)
+    assert cfg.dashboard is False
+    assert cfg.dashboard_path == "/ui"  # normalized leading slash
+    assert cfg.dashboard_interval == 10
+    assert cfg.dashboard_auth_token == "secret"
+    assert cfg.grafana_url == "http://grafana:3000"
+    assert cfg.clickhouse_dsn == "http://ch:8123"
+
+
+def test_dashboard_kwargs_override_env() -> None:
+    env = {"ARGUS_DASHBOARD": "true"}
+    cfg = ArgusConfig.resolve(dashboard=False, dashboard_auth_token="t", environ=env)
+    assert cfg.dashboard is False
+    assert cfg.dashboard_auth_token == "t"

@@ -38,6 +38,9 @@ coverage.xml
 .tox/
 .nox/
 
+# --- Brainstorm / scratch ---
+.superpowers/
+
 # --- IDE / OS ---
 .idea/
 .vscode/

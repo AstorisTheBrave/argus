@@ -31,6 +31,8 @@ DEFAULT_PORT = 9191
 DEFAULT_HOST = "0.0.0.0"
 DEFAULT_METRICS_PATH = "/metrics"
 DEFAULT_NAMESPACE = "discord"
+DEFAULT_DASHBOARD_PATH = "/"
+DEFAULT_DASHBOARD_INTERVAL = 5
 
 _TRUE = frozenset({"1", "true", "yes", "on"})
 _FALSE = frozenset({"0", "false", "no", "off", ""})
@@ -64,6 +66,12 @@ class ArgusConfig:
     namespace: str = DEFAULT_NAMESPACE
     enable_per_guild: bool = False
     otlp_endpoint: str | None = None
+    dashboard: bool = True
+    dashboard_path: str = DEFAULT_DASHBOARD_PATH
+    dashboard_interval: int = DEFAULT_DASHBOARD_INTERVAL
+    dashboard_auth_token: str | None = None
+    grafana_url: str | None = None
+    clickhouse_dsn: str | None = None
 
     @classmethod
     def resolve(
@@ -76,6 +84,12 @@ class ArgusConfig:
         namespace: str | None = None,
         enable_per_guild: bool | None = None,
         otlp_endpoint: str | None = None,
+        dashboard: bool | None = None,
+        dashboard_path: str | None = None,
+        dashboard_interval: int | None = None,
+        dashboard_auth_token: str | None = None,
+        grafana_url: str | None = None,
+        clickhouse_dsn: str | None = None,
         environ: dict[str, str] | None = None,
     ) -> ArgusConfig:
         """Build a config from kwargs, falling back to env, then defaults.
@@ -98,6 +112,22 @@ class ArgusConfig:
                 enable_per_guild, env.get("ARGUS_ENABLE_PER_GUILD"), False
             ),
             otlp_endpoint=cls._pick_optional(otlp_endpoint, env.get("ARGUS_OTLP_ENDPOINT")),
+            dashboard=cls._pick_bool(dashboard, env.get("ARGUS_DASHBOARD"), True),
+            dashboard_path=_normalize_path(
+                cls._pick_str(
+                    dashboard_path, env.get("ARGUS_DASHBOARD_PATH"), DEFAULT_DASHBOARD_PATH
+                )
+            ),
+            dashboard_interval=cls._pick_int(
+                dashboard_interval,
+                env.get("ARGUS_DASHBOARD_INTERVAL"),
+                DEFAULT_DASHBOARD_INTERVAL,
+            ),
+            dashboard_auth_token=cls._pick_optional(
+                dashboard_auth_token, env.get("ARGUS_DASHBOARD_AUTH_TOKEN")
+            ),
+            grafana_url=cls._pick_optional(grafana_url, env.get("ARGUS_GRAFANA_URL")),
+            clickhouse_dsn=cls._pick_optional(clickhouse_dsn, env.get("ARGUS_CLICKHOUSE_DSN")),
         )
 
     @staticmethod
