@@ -50,3 +50,25 @@ class AnalyticsQuery:
         )
         result = await self._client.query(sql, parameters={"guild_id": guild_id, "limit": limit})
         return list(result.result_rows)
+
+    async def command_stats(self, guild_id: str, *, limit: int = 50) -> list[Any]:
+        """Per-command count + average duration (ms) for a guild."""
+        sql = (
+            f"SELECT command, count() AS count, avg(duration_ms) AS avg_ms FROM {self._table} "
+            "WHERE guild_id = %(guild_id)s AND event = 'app_command' "
+            "GROUP BY command ORDER BY count DESC LIMIT %(limit)s"
+        )
+        result = await self._client.query(sql, parameters={"guild_id": guild_id, "limit": limit})
+        return list(result.result_rows)
+
+    async def avg_duration(self, guild_id: str) -> float:
+        """Overall average application command duration (ms) for a guild."""
+        sql = (
+            f"SELECT avg(duration_ms) AS avg_ms FROM {self._table} "
+            "WHERE guild_id = %(guild_id)s AND event = 'app_command'"
+        )
+        result = await self._client.query(sql, parameters={"guild_id": guild_id})
+        rows = list(result.result_rows)
+        if rows and rows[0] and rows[0][0] is not None:
+            return float(rows[0][0])
+        return 0.0
