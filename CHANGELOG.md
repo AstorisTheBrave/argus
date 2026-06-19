@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.1](https://github.com/AstorisTheBrave/argus/compare/v0.2.0...v0.2.1) (2026-06-19)
+
+
+### Bug Fixes
+
+* **dashboard:** ship only subset Geist + Geist Mono, slim the wheel ([#7](https://github.com/AstorisTheBrave/argus/issues/7)) ([80c0282](https://github.com/AstorisTheBrave/argus/commit/80c02826c4d2830b13cd57b5b097ec29c42f66c1))
+
 ## [0.2.0](https://github.com/AstorisTheBrave/argus/compare/v0.1.0...v0.2.0) (2026-06-17)
 
 
