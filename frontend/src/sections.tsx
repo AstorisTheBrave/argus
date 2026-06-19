@@ -7,7 +7,7 @@ import type uPlot from "uplot";
 import { LineChart, StatCard } from "./components";
 import type { Snapshot } from "./lib/prom";
 import { bucketsFromSamples, histogramQuantile } from "./lib/quantile";
-import { counterTotal, gaugeValue, samples } from "./lib/select";
+import { counterTotal, gaugeValue, histogramAvg, samples } from "./lib/select";
 import type { Frame } from "./useDashboard";
 
 const ACCENT = "#6aa8ff";
@@ -16,6 +16,16 @@ const ACCENT2 = "#b48cff";
 function fmt(n: number): string {
   if (Number.isNaN(n)) return "-";
   return Number.isInteger(n) ? n.toString() : n.toFixed(2);
+}
+
+function fmtUptime(seconds: number): string {
+  if (Number.isNaN(seconds) || seconds <= 0) return "-";
+  const d = Math.floor(seconds / 86400);
+  const h = Math.floor((seconds % 86400) / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  if (d > 0) return `${d}d ${h}h`;
+  if (h > 0) return `${h}h ${m}m`;
+  return `${m}m`;
 }
 
 function clusterLabels(cluster: string): Record<string, string> {
@@ -64,6 +74,13 @@ export function Overview({ latest, frames, cluster }: { latest: Snapshot; frames
         />
         <StatCard label="Guilds" value={fmt(gaugeValue(latest, "discord_guilds", cl))} />
         <StatCard label="Cached users" value={fmt(gaugeValue(latest, "discord_cached_users", cl))} />
+        <StatCard label="Voice clients" value={fmt(gaugeValue(latest, "discord_voice_clients", cl))} />
+        <StatCard label="Emojis" value={fmt(gaugeValue(latest, "discord_emojis", cl))} />
+        <StatCard
+          label="Commands"
+          value={fmt(gaugeValue(latest, "discord_app_commands_registered", cl))}
+        />
+        <StatCard label="Uptime" value={fmtUptime(gaugeValue(latest, "discord_uptime_seconds", cl))} />
       </div>
       <LineChart title="Max shard latency (s)" data={data} series={[{ label: "latency", stroke: ACCENT }]} />
     </div>
@@ -88,6 +105,11 @@ export function Interactions({ latest, frames }: { latest: Snapshot; frames: Fra
         <StatCard label="Interactions" value={fmt(counterTotal(latest, "discord_interactions"))} />
         <StatCard label="App commands" value={fmt(totalCommands)} />
         <StatCard label="Error rate" value={fmt(errPct)} unit="%" />
+        <StatCard
+          label="Duration avg"
+          value={fmt(histogramAvg(latest, "discord_app_command_duration_seconds"))}
+          unit="s"
+        />
         <StatCard label="Duration p95" value={fmt(histogramQuantile(0.95, buckets))} unit="s" />
       </div>
       <LineChart

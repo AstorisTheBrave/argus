@@ -48,3 +48,11 @@ export function infoValue(snap: Snapshot, family: string, key: string): string {
   const found = samples(snap, family).find((s) => s.labels[key] !== undefined);
   return found ? found.labels[key] : "";
 }
+
+// Mean of a histogram family across all label sets: sum(_sum) / sum(_count).
+export function histogramAvg(snap: Snapshot, family: string): number {
+  const s = samples(snap, family);
+  const sum = s.filter((x) => x.name.endsWith("_sum")).reduce((a, x) => a + x.value, 0);
+  const count = s.filter((x) => x.name.endsWith("_count")).reduce((a, x) => a + x.value, 0);
+  return count > 0 ? sum / count : NaN;
+}

@@ -56,6 +56,8 @@ interface AnalyticsRow {
 export function Analytics({ enabled, token }: { enabled: boolean; token: string | null }) {
   const [guildId, setGuildId] = useState("");
   const [volume, setVolume] = useState<(string | number)[][]>([]);
+  const [commands, setCommands] = useState<(string | number)[][]>([]);
+  const [avgMs, setAvgMs] = useState<number | null>(null);
   const [error, setError] = useState("");
 
   if (!enabled) {
@@ -70,19 +72,24 @@ export function Analytics({ enabled, token }: { enabled: boolean; token: string 
   const load = async () => {
     setError("");
     const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
+    const get = async (path: string) => {
+      const r = await fetch(`/api/analytics/${path}?guild_id=${encodeURIComponent(guildId)}`, {
+        headers,
+      });
+      if (!r.ok) throw new Error(String(r.status));
+      return r.json();
+    };
     try {
-      const r = await fetch(
-        `/api/analytics/interaction-volume?guild_id=${encodeURIComponent(guildId)}`,
-        { headers },
-      );
-      if (!r.ok) {
-        setError(`request failed (${r.status})`);
-        return;
-      }
-      const data = (await r.json()) as AnalyticsRow;
-      setVolume(data.rows);
-    } catch {
-      setError("request failed");
+      const [vol, cmd, avg] = await Promise.all([
+        get("interaction-volume") as Promise<AnalyticsRow>,
+        get("command-stats") as Promise<AnalyticsRow>,
+        get("avg-duration") as Promise<{ avg_ms: number }>,
+      ]);
+      setVolume(vol.rows);
+      setCommands(cmd.rows);
+      setAvgMs(avg.avg_ms);
+    } catch (e) {
+      setError(`request failed (${e instanceof Error ? e.message : "error"})`);
     }
   };
 
@@ -100,6 +107,35 @@ export function Analytics({ enabled, token }: { enabled: boolean; token: string 
         </button>
       </div>
       {error && <p className="error">{error}</p>}
+      {avgMs !== null && (
+        <div className="grid">
+          <div className="nimble-glass--flat stat">
+            <div className="label">Avg command duration</div>
+            <div className="value nimble-mono">
+              {avgMs.toFixed(1)}
+              <span className="unit"> ms</span>
+            </div>
+          </div>
+        </div>
+      )}
+      <table className="nimble-glass--flat analytics-table">
+        <thead>
+          <tr>
+            <th>command</th>
+            <th>count</th>
+            <th>avg ms</th>
+          </tr>
+        </thead>
+        <tbody>
+          {commands.map((row, i) => (
+            <tr key={i}>
+              <td className="nimble-mono">{String(row[0])}</td>
+              <td className="nimble-mono">{String(row[1])}</td>
+              <td className="nimble-mono">{Number(row[2]).toFixed(1)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
       <table className="nimble-glass--flat analytics-table">
         <thead>
           <tr>
