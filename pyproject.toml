@@ -48,13 +48,18 @@ path = "src/argus/__init__.py"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/argus"]
+# Ship the built dashboard, but never font originals (.ttf): the dashboard
+# bundles only subset .woff2, and this guard stops a frontend build from
+# re-bloating the wheel with the full Nimble asset tree.
 artifacts = ["src/argus/dashboard/static/**"]
+exclude = ["**/*.ttf", "**/*.otf", "**/*.map"]
 
 [tool.hatch.build.targets.wheel.hooks.custom]
 path = "hatch_build.py"
 
 [tool.hatch.build.targets.sdist]
 artifacts = ["src/argus/dashboard/static/**"]
+exclude = ["**/*.ttf", "**/*.otf", "**/*.map"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
