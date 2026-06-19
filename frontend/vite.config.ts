@@ -14,4 +14,7 @@ export default defineConfig({
       "/metrics": "http://localhost:9191",
     },
   },
+  test: {
+    setupFiles: ["./src/test-setup.ts"],
+  },
 });

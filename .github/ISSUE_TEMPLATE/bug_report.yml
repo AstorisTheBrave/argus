@@ -1,0 +1,33 @@
+name: Bug report
+description: Something in Argus is not working as expected.
+labels: ["bug"]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, what you expected, and what actually happened.
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Reproduction
+      description: Minimal steps or a snippet (the `Argus(...)` call and relevant config).
+      render: python
+    validations:
+      required: true
+  - type: input
+    id: versions
+    attributes:
+      label: Versions
+      description: argus-dpy, discord.py, Python, OS.
+      placeholder: "argus-dpy 0.2.1, discord.py 2.7.1, Python 3.12, Linux"
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs / metrics output
+      description: Relevant tracebacks, or the offending /metrics lines.
+      render: shell
