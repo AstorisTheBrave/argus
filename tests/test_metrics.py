@@ -1,4 +1,4 @@
-"""Metric catalogue matches spec sec.8; invariant 2 enforced (D3 gate)."""
+"""Metric catalogue + invariant 2 enforcement."""
 
 from __future__ import annotations
 
@@ -15,23 +15,30 @@ from argus.core.metrics import (
 # Expected (name -> (kind, labelnames)) for the default `discord` namespace.
 EXPECTED: dict[str, tuple[MetricKind, tuple[str, ...]]] = {
     "discord_shard_latency_seconds": (MetricKind.GAUGE, ("shard",)),
+    "discord_shard_up": (MetricKind.GAUGE, ("shard",)),
     "discord_shards_connected": (MetricKind.GAUGE, ("cluster",)),
     "discord_shards_configured": (MetricKind.GAUGE, ("cluster",)),
     "discord_guilds": (MetricKind.GAUGE, ("cluster",)),
     "discord_cached_users": (MetricKind.GAUGE, ("cluster",)),
+    "discord_voice_clients": (MetricKind.GAUGE, ("cluster",)),
+    "discord_emojis": (MetricKind.GAUGE, ("cluster",)),
+    "discord_stickers": (MetricKind.GAUGE, ("cluster",)),
+    "discord_private_channels": (MetricKind.GAUGE, ("cluster",)),
+    "discord_app_commands_registered": (MetricKind.GAUGE, ("cluster",)),
+    "discord_uptime_seconds": (MetricKind.GAUGE, ("cluster",)),
     "discord_bot": (MetricKind.INFO, ()),
     "argus_up": (MetricKind.GAUGE, ()),
-    "discord_interactions_total": (MetricKind.COUNTER, ("type", "status")),
-    "discord_app_commands_total": (MetricKind.COUNTER, ("command", "status")),
-    "discord_commands_total": (MetricKind.COUNTER, ("command", "status")),
-    "discord_command_errors_total": (MetricKind.COUNTER, ("command", "error_type")),
-    "discord_gateway_events_total": (MetricKind.COUNTER, ("event",)),
-    "discord_shard_disconnects_total": (MetricKind.COUNTER, ("shard",)),
-    "discord_shard_reconnects_total": (MetricKind.COUNTER, ("shard",)),
-    "discord_log_records_total": (MetricKind.COUNTER, ("logger", "level")),
-    "discord_ratelimits_total": (MetricKind.COUNTER, ()),
-    "argus_instrumentation_errors_total": (MetricKind.COUNTER, ("hook",)),
-    "discord_app_command_duration_seconds": (MetricKind.HISTOGRAM, ("command",)),
+    "discord_interactions_total": (MetricKind.COUNTER, ("type", "status", "cluster")),
+    "discord_app_commands_total": (MetricKind.COUNTER, ("command", "status", "cluster")),
+    "discord_commands_total": (MetricKind.COUNTER, ("command", "status", "cluster")),
+    "discord_command_errors_total": (MetricKind.COUNTER, ("command", "error_type", "cluster")),
+    "discord_gateway_events_total": (MetricKind.COUNTER, ("event", "cluster")),
+    "discord_shard_disconnects_total": (MetricKind.COUNTER, ("shard", "cluster")),
+    "discord_shard_reconnects_total": (MetricKind.COUNTER, ("shard", "cluster")),
+    "discord_log_records_total": (MetricKind.COUNTER, ("logger", "level", "cluster")),
+    "discord_ratelimits_total": (MetricKind.COUNTER, ("cluster",)),
+    "argus_instrumentation_errors_total": (MetricKind.COUNTER, ("hook", "cluster")),
+    "discord_app_command_duration_seconds": (MetricKind.HISTOGRAM, ("command", "cluster")),
 }
 
 
@@ -43,6 +50,11 @@ class _Shard:
         return self._closed
 
 
+class _Tree:
+    def get_commands(self) -> list[object]:
+        return [object(), object()]
+
+
 class _Bot:
     def __init__(self) -> None:
         self.latencies = [(0, 0.1), (1, math.nan)]
@@ -50,6 +62,11 @@ class _Bot:
         self.shard_count = 2
         self.guilds = [object(), object(), object()]
         self.users = [object()] * 5
+        self.voice_clients = [object()]
+        self.emojis = [object(), object()]
+        self.stickers: list[object] = []
+        self.private_channels = [object()]
+        self.tree = _Tree()
 
     def is_closed(self) -> bool:
         return False
@@ -95,9 +112,12 @@ def test_gauge_callbacks_read_live_state_with_nan_guard() -> None:
     m = reg.metrics
 
     latency = list(m["discord_shard_latency_seconds"].callback())  # type: ignore[misc]
-    assert latency == [latency[0]] and len(latency) == 1  # NaN shard dropped
+    assert len(latency) == 1  # NaN shard dropped
     assert latency[0].labels == ("0",)
     assert latency[0].value == 0.1
+
+    shard_up = {s.labels[0]: s.value for s in m["discord_shard_up"].callback()}  # type: ignore[misc]
+    assert shard_up == {"0": 1.0, "1": 0.0}
 
     connected = list(m["discord_shards_connected"].callback())  # type: ignore[misc]
     assert connected[0].value == 1.0 and connected[0].labels == ("default",)
@@ -105,6 +125,10 @@ def test_gauge_callbacks_read_live_state_with_nan_guard() -> None:
     assert list(m["discord_shards_configured"].callback())[0].value == 2.0  # type: ignore[misc]
     assert list(m["discord_guilds"].callback())[0].value == 3.0  # type: ignore[misc]
     assert list(m["discord_cached_users"].callback())[0].value == 5.0  # type: ignore[misc]
+    assert list(m["discord_voice_clients"].callback())[0].value == 1.0  # type: ignore[misc]
+    assert list(m["discord_emojis"].callback())[0].value == 2.0  # type: ignore[misc]
+    assert list(m["discord_private_channels"].callback())[0].value == 1.0  # type: ignore[misc]
+    assert list(m["discord_app_commands_registered"].callback())[0].value == 2.0  # type: ignore[misc]
     assert list(m["argus_up"].callback())[0].value == 1.0  # type: ignore[misc]
 
 
