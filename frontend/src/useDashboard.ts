@@ -24,8 +24,14 @@ const MAX_FRAMES = 120;
 const TOKEN_KEY = "argus_token";
 
 function initialToken(): string | null {
+  // A ?token= in the URL is remembered, so a shared dashboard link only needs
+  // the token once.
   const fromUrl = new URLSearchParams(window.location.search).get("token");
-  return fromUrl ?? window.localStorage.getItem(TOKEN_KEY);
+  if (fromUrl) {
+    window.localStorage.setItem(TOKEN_KEY, fromUrl);
+    return fromUrl;
+  }
+  return window.localStorage.getItem(TOKEN_KEY);
 }
 
 export function useDashboard() {

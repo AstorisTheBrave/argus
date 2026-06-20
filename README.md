@@ -41,27 +41,40 @@ and **metrics at `/metrics`** on port `9191`. Disable the dashboard with
 fail-open: it is counted and swallowed, never raised into your bot.
 See [Architecture & invariants](https://github.com/AstorisTheBrave/argus/wiki/Architecture-and-Invariants).
 
-## Configuration
+## Minimal setup
 
-Constructor kwargs override `ARGUS_*` environment variables override defaults.
+The minimum is one line; everything else is opt-in via kwargs or `ARGUS_*`
+environment variables (kwargs override env override defaults).
 
-| kwarg | env | default | meaning |
-|---|---|---|---|
-| `port` | `ARGUS_PORT` | `9191` | server port |
-| `host` | `ARGUS_HOST` | `0.0.0.0` | bind host |
-| `metrics_path` | `ARGUS_METRICS_PATH` | `/metrics` | metrics endpoint |
-| `cluster_id` | `ARGUS_CLUSTER_ID` | `default` | low-cardinality label for clustered deploys |
-| `namespace` | `ARGUS_NAMESPACE` | `discord` | metric name prefix |
-| `dashboard` | `ARGUS_DASHBOARD` | `true` | serve the dashboard at `/` |
-| `dashboard_path` | `ARGUS_DASHBOARD_PATH` | `/` | dashboard mount path |
-| `dashboard_interval` | `ARGUS_DASHBOARD_INTERVAL` | `5` | live-stream seconds |
-| `dashboard_auth_token` | `ARGUS_DASHBOARD_AUTH_TOKEN` | — | bearer token gating the dashboard + APIs |
-| `grafana_url` | `ARGUS_GRAFANA_URL` | — | link/embed your Grafana boards |
-| `enable_per_guild` | `ARGUS_ENABLE_PER_GUILD` | `false` | enable the per-guild analytical path |
-| `clickhouse_dsn` | `ARGUS_CLICKHOUSE_DSN` | — | ClickHouse sink/target for analytics |
-| `otlp_endpoint` | `ARGUS_OTLP_ENDPOINT` | — | also push metrics via OTLP |
+```python
+Argus(bot)   # metrics at /metrics, dashboard at /, on port 9191
+```
 
-Full reference: [Configuration](https://github.com/AstorisTheBrave/argus/wiki/Configuration).
+To protect the dashboard, set **one env var** on the host that runs the bot —
+Argus picks it up automatically. The dashboard is served *by* Argus in the same
+process, so there is nothing separate to host or wire up:
+
+```bash
+ARGUS_DASHBOARD_AUTH_TOKEN=your-secret   # gates / and /api/*; /metrics stays scrapeable
+```
+
+Open the dashboard once with the token and it is remembered in the browser:
+`http://your-host:9191/?token=your-secret`.
+
+### Common options
+
+| kwarg / env | default | meaning |
+|---|---|---|
+| `port` / `ARGUS_PORT` | `9191` | server port |
+| `dashboard_auth_token` / `ARGUS_DASHBOARD_AUTH_TOKEN` | — | gate the dashboard + APIs |
+| `grafana_url` / `ARGUS_GRAFANA_URL` | — | link/embed your Grafana boards |
+| `cluster_id` / `ARGUS_CLUSTER_ID` | `default` | label for clustered deploys |
+| `enable_per_guild` / `ARGUS_ENABLE_PER_GUILD` | `false` | per-guild analytics path |
+| `otlp_endpoint` / `ARGUS_OTLP_ENDPOINT` | — | also push metrics via OTLP |
+
+Every option, precedence and parsing rule is in
+[Configuration](https://github.com/AstorisTheBrave/argus/wiki/Configuration).
+New here? Start with the [FAQ](https://github.com/AstorisTheBrave/argus/wiki/FAQ).
 
 ## Metrics
 
