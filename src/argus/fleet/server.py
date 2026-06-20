@@ -29,6 +29,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import hmac
+import logging
 from collections.abc import Awaitable, Callable
 from typing import TYPE_CHECKING, Any
 
@@ -40,6 +41,10 @@ from argus import __version__
 from argus.dashboard.server import STATIC_DIR
 from argus.fleet.metrics import FleetMetrics
 from argus.fleet.ratelimit import KeyedRateLimiter
+from argus.fleet.sources.base import ClusterValues, assemble
+from argus.fleet.watch import IdentityWatch
+
+log = logging.getLogger("argus.fleet")
 
 if TYPE_CHECKING:
     from argus.fleet.config import FleetConfig
@@ -186,6 +191,16 @@ def build_fleet_app(
     # Abuse resistance: per-IP register limit, per-identity heartbeat limit.
     register_limiter = KeyedRateLimiter(config.register_burst)
     heartbeat_limiter = KeyedRateLimiter(config.heartbeat_burst)
+    identity_watch = IdentityWatch()
+
+    def _note_identity(identity: str, request: web.Request) -> None:
+        if identity_watch.observe(identity, request.remote):
+            metrics.identity_conflicts.inc()
+            log.warning(
+                "identity %r seen from a new remote %s; duplicate CLUSTER_ID/fleet_id?",
+                identity,
+                request.remote,
+            )
 
     async def health(_request: web.Request) -> web.StreamResponse:
         return web.Response(text="ok\n")
@@ -219,6 +234,7 @@ def build_fleet_app(
             raise web.HTTPTooManyRequests(text="register rate exceeded\n")
         if not registry.knows(identity) and registry.count() >= config.max_clusters:
             raise web.HTTPForbidden(text="fleet cluster cap reached\n")
+        _note_identity(identity, request)
         fleet = str(body.get("fleet") or "default")
         version = str(body.get("version") or "")
         scrape_target = str(body.get("scrape_target") or "")
@@ -233,6 +249,7 @@ def build_fleet_app(
             raise web.HTTPBadRequest(text="identity required\n")
         if not heartbeat_limiter.allow(identity):
             raise web.HTTPTooManyRequests(text="heartbeat rate exceeded\n")
+        _note_identity(identity, request)
         snapshot = body.get("snapshot")
         registry.heartbeat(identity, snapshot if isinstance(snapshot, dict) else None)
         metrics.heartbeats.inc()
@@ -255,7 +272,13 @@ def build_fleet_app(
             if cache_data is not None and (loop.time() - cache_at) < ttl:
                 return cache_data
             registry.sweep()
-            view = await source.fleet_snapshot(registry)
+            try:
+                view = await source.fleet_snapshot(registry)
+            except Exception:
+                # Chaos resilience: a failing data source must not 500 the view.
+                # Fall back to registry topology (up/down) with zeroed metrics.
+                log.warning("data source failed; serving registry topology only", exc_info=True)
+                view = assemble(registry, ClusterValues())
             cache_data = view.to_dict()
             cache_at = loop.time()
             return cache_data

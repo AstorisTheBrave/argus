@@ -7,6 +7,7 @@ from typing import Any
 
 import pytest
 
+from argus.fleet.model import empty_metrics
 from argus.fleet.registry import STATUS_DOWN, Registry
 from argus.fleet.sources.base import ClusterValues, FleetDataSource, assemble
 from argus.fleet.sources.composite import CompositeSource
@@ -101,6 +102,29 @@ def test_derive_metrics_p95_from_histogram() -> None:
     snap = _snapshot(duration_buckets=buckets)
     metrics, _ = derive_metrics(snap, "discord")
     assert metrics["duration_p95_seconds"] == 1.0
+
+
+@pytest.mark.parametrize(
+    "garbage",
+    [
+        {},
+        {"metrics": None},
+        {"metrics": {"discord_guilds": None}},
+        {"metrics": {"discord_guilds": {"samples": "nope"}}},
+        {"metrics": {"x": {"samples": [{"name": "discord_guilds"}]}}},  # no value key
+        {"metrics": {"x": {"samples": [{"name": "discord_guilds", "value": "NaNish"}]}}},
+        {"metrics": {"x": {"samples": [{"labels": {"le": "oops"}, "value": 1}]}}},
+        {"unexpected": [1, 2, 3]},
+    ],
+)
+def test_derive_metrics_is_fuzz_safe(garbage: dict[str, Any]) -> None:
+    # A malformed or hostile snapshot must never raise; it yields zeroed metrics.
+    try:
+        metrics, totals = derive_metrics(garbage, "discord")
+    except (KeyError, TypeError, ValueError, AttributeError) as exc:  # pragma: no cover
+        raise AssertionError(f"derive_metrics raised on garbage input: {exc!r}") from exc
+    assert set(metrics) == set(empty_metrics())
+    assert totals == (0.0, 0.0)
 
 
 async def test_push_source_builds_fleet_view(tmp_path: Path) -> None:

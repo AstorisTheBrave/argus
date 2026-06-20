@@ -28,8 +28,9 @@ on a Prometheus label.
 pip install argus-dpy
 ```
 
-Python 3.10+, `discord.py >= 2.4`. Optional extras: `argus-dpy[otlp]`,
-`argus-dpy[clickhouse]`. A reference container is published at
+Python 3.10+, `discord.py >= 2.4`. Optional extras: `argus-dpy[otlp]`
+(OpenTelemetry push), `argus-dpy[clickhouse]` (per-guild analytics),
+`argus-dpy[fleet]` (`.env` autoload for the control plane). A reference container is published at
 `ghcr.io/astoristhebrave/argus`, and the [Fleet control plane](#fleet-control-plane-opt-in)
 at `ghcr.io/astoristhebrave/argus-fleet`.
 
@@ -110,18 +111,21 @@ See [Dashboard](https://github.com/AstorisTheBrave/argus/wiki/Dashboard).
 ## Per-guild analytics
 
 Per-guild, per-user questions never go to Prometheus (cardinality). With
-`enable_per_guild` + `clickhouse_dsn`, Argus drains per-guild events to
-ClickHouse (batched, non-blocking) and the dashboard's Analytics section serves
-per-guild command counts and average durations.
-See [History & ClickHouse](https://github.com/AstorisTheBrave/argus/wiki/History-and-ClickHouse).
+`enable_per_guild` + `clickhouse_dsn` (the `argus-dpy[clickhouse]` extra), Argus
+drains per-guild events to ClickHouse (batched, non-blocking) and the dashboard's
+Analytics section serves per-guild command counts and average durations.
+Step-by-step: [Per-guild analytics tutorial](https://github.com/AstorisTheBrave/argus/wiki/Tutorial-Analytics);
+internals: [History & ClickHouse](https://github.com/AstorisTheBrave/argus/wiki/History-and-ClickHouse).
 
 ## Grafana, OTLP, clustering
 
 `docker compose up -d` brings up a provisioned Prometheus + Grafana with three
-dashboards. Set `otlp_endpoint` to also push via OpenTelemetry. Run one Argus
+dashboards. Set `otlp_endpoint` (the `argus-dpy[otlp]` extra) to also push via
+OpenTelemetry to Datadog, Grafana Cloud, Honeycomb, and the like. Run one Argus
 per process with a distinct `cluster_id` for clustered bots.
-See [Clustering](https://github.com/AstorisTheBrave/argus/wiki/Clustering) and
-[OTLP](https://github.com/AstorisTheBrave/argus/wiki/OTLP).
+See the [OTLP tutorial](https://github.com/AstorisTheBrave/argus/wiki/Tutorial-OTLP),
+[Clustering](https://github.com/AstorisTheBrave/argus/wiki/Clustering), and
+[OTLP internals](https://github.com/AstorisTheBrave/argus/wiki/OTLP).
 
 ## Fleet control plane (opt-in)
 
