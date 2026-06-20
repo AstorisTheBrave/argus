@@ -47,3 +47,7 @@ class CompositeSource(FleetDataSource):
                     merged.metrics[identity] = metrics
                     merged.error_totals[identity] = values.error_totals.get(identity, (0.0, 0.0))
         return merged
+
+    async def aclose(self) -> None:
+        for source in self._sources:
+            await source.aclose()

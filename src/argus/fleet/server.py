@@ -220,6 +220,8 @@ def build_fleet_app(
                 await task
         # Final flush on shutdown so the latest state is durable.
         await asyncio.get_running_loop().run_in_executor(None, registry.save)
+        # Release the data source's resources (e.g. the Prometheus HTTP session).
+        await source.aclose()
 
     app.router.add_get("/healthz", health)
     app.router.add_get("/readyz", ready)
