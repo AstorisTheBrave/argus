@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.1](https://github.com/AstorisTheBrave/argus/compare/v0.3.0...v0.3.1) (2026-06-20)
+
+
+### Bug Fixes
+
+* **dashboard:** remember a ?token= link; docs: minimal setup in README ([#11](https://github.com/AstorisTheBrave/argus/issues/11)) ([7dd7cf0](https://github.com/AstorisTheBrave/argus/commit/7dd7cf0f3ab734ba4024afbc72325cb1e2be4801))
+
 ## [0.3.0](https://github.com/AstorisTheBrave/argus/compare/v0.2.1...v0.3.0) (2026-06-20)
 
 
