@@ -5,6 +5,7 @@ import { useState } from "react";
 
 import "./app.css";
 import { Sidebar, type SectionId } from "./components";
+import { FleetApp } from "./fleet/FleetApp";
 import { clusters } from "./lib/select";
 import { Gateway, Interactions, Overview } from "./sections";
 import { Analytics, Grafana } from "./sections_hub";
@@ -37,6 +38,12 @@ export function App() {
 
   if (authError && !token) {
     return <TokenPrompt onSubmit={setToken} />;
+  }
+
+  // The control plane serves the same bundle with config.fleet set; render the
+  // multi-tier fleet view instead of the per-process dashboard.
+  if (config?.fleet) {
+    return <FleetApp token={token} version={config.version} />;
   }
 
   const clusterList = latest ? clusters(latest) : [];
