@@ -31,7 +31,7 @@ import contextlib
 from argus.exposition.server import start_server
 from argus.fleet.config import FleetConfig
 from argus.fleet.registry import Registry
-from argus.fleet.server import build_fleet_app
+from argus.fleet.server import build_fleet_app, ensure_secure_bind
 from argus.fleet.sources.base import FleetDataSource
 from argus.fleet.sources.composite import CompositeSource
 from argus.fleet.sources.prometheus import PrometheusSource
@@ -48,6 +48,7 @@ def build_source(config: FleetConfig) -> FleetDataSource:
 
 
 async def _serve(config: FleetConfig) -> None:
+    ensure_secure_bind(config)
     registry = Registry(config.state_path, config.heartbeat_interval, config.ttl_factor)
     app = build_fleet_app(config, registry, build_source(config))
     runner = await start_server(app, config.host, config.port)

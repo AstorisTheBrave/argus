@@ -44,6 +44,22 @@ if TYPE_CHECKING:
 _SWEEPER_KEY: web.AppKey[asyncio.Task[None]] = web.AppKey("argus_fleet_sweeper", asyncio.Task)
 
 
+def ensure_secure_bind(config: FleetConfig) -> None:
+    """Refuse to start on a public bind without a token (secure-by-default).
+
+    A non-loopback bind with no token would expose the fleet view and the
+    register/heartbeat surface to the open internet. We hard-refuse rather than
+    warn; set ``ARGUS_FLEET_TOKEN`` (or ``ARGUS_FLEET_TOKEN_FILE``), bind to
+    loopback, or pass ``ARGUS_FLEET_INSECURE=1`` for local testing only.
+    """
+    if config.token is None and not config.is_loopback() and not config.insecure:
+        raise RuntimeError(
+            f"refusing to bind {config.host!r} without a token: set ARGUS_FLEET_TOKEN "
+            "(or ARGUS_FLEET_TOKEN_FILE), bind to 127.0.0.1, or set ARGUS_FLEET_INSECURE=1 "
+            "for local testing only"
+        )
+
+
 async def _read_json(request: web.Request) -> dict[str, object]:
     try:
         payload = await request.json()

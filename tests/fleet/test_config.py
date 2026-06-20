@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import FrozenInstanceError
+from pathlib import Path
 
 import pytest
 
@@ -59,3 +60,48 @@ def test_config_is_frozen() -> None:
     cfg = FleetConfig.resolve(environ={})
     with pytest.raises(FrozenInstanceError):
         cfg.port = 1  # type: ignore[misc]
+
+
+def test_hardening_defaults() -> None:
+    cfg = FleetConfig.resolve(environ={})
+    assert cfg.insecure is False
+    assert cfg.max_body_bytes == 262144
+    assert cfg.cors_origins == ()
+    assert cfg.view_cache_ms == 1000
+
+
+def test_hardening_env_mapping() -> None:
+    env = {
+        "ARGUS_FLEET_INSECURE": "1",
+        "ARGUS_FLEET_MAX_BODY_BYTES": "1024",
+        "ARGUS_FLEET_CORS_ORIGINS": "https://a.example, https://b.example ,",
+        "ARGUS_FLEET_VIEW_CACHE_MS": "250",
+    }
+    cfg = FleetConfig.resolve(environ=env)
+    assert cfg.insecure is True
+    assert cfg.max_body_bytes == 1024
+    # Trims whitespace and drops empty entries.
+    assert cfg.cors_origins == ("https://a.example", "https://b.example")
+    assert cfg.view_cache_ms == 250
+
+
+def test_token_from_file(tmp_path: Path) -> None:
+    secret = tmp_path / "tok"
+    secret.write_text("  filesecret\n", encoding="utf-8")
+    cfg = FleetConfig.resolve(environ={"ARGUS_FLEET_TOKEN_FILE": str(secret)})
+    assert cfg.token == "filesecret"
+
+
+def test_token_env_beats_token_file(tmp_path: Path) -> None:
+    secret = tmp_path / "tok"
+    secret.write_text("fromfile", encoding="utf-8")
+    cfg = FleetConfig.resolve(
+        environ={"ARGUS_FLEET_TOKEN": "fromenv", "ARGUS_FLEET_TOKEN_FILE": str(secret)}
+    )
+    assert cfg.token == "fromenv"
+
+
+def test_is_loopback() -> None:
+    assert FleetConfig.resolve(host="127.0.0.1", environ={}).is_loopback() is True
+    assert FleetConfig.resolve(host="localhost", environ={}).is_loopback() is True
+    assert FleetConfig.resolve(host="0.0.0.0", environ={}).is_loopback() is False

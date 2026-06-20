@@ -24,7 +24,8 @@ is the server-side config; member-side fleet fields live on ``ArgusConfig``.
 from __future__ import annotations
 
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from pathlib import Path
 
 DEFAULT_FLEET_HOST = "0.0.0.0"
 DEFAULT_FLEET_PORT = 9190
@@ -32,6 +33,32 @@ DEFAULT_HEARTBEAT_INTERVAL = 15
 DEFAULT_TTL_FACTOR = 3
 DEFAULT_STATE_PATH = "argus-fleet-state.json"
 DEFAULT_NAMESPACE = "discord"
+# A normal heartbeat snapshot is a few KiB; cap the body well above that but far
+# below aiohttp's 1 MiB default so a hostile member cannot push large payloads.
+DEFAULT_MAX_BODY_BYTES = 262144
+# Short cache so N concurrent viewers share one view computation / Prometheus
+# query batch instead of each triggering a recompute.
+DEFAULT_VIEW_CACHE_MS = 1000
+
+# Hosts that are safe to serve without a token (a token is still recommended).
+_LOOPBACK_HOSTS = frozenset({"127.0.0.1", "::1", "localhost"})
+
+_TRUE = frozenset({"1", "true", "yes", "on"})
+_FALSE = frozenset({"0", "false", "no", "off", ""})
+
+
+def _parse_bool(value: str) -> bool:
+    lowered = value.strip().lower()
+    if lowered in _TRUE:
+        return True
+    if lowered in _FALSE:
+        return False
+    raise ValueError(f"cannot parse {value!r} as a boolean")
+
+
+def _read_secret_file(path: str) -> str:
+    """Read and strip a secret from a file (for *_TOKEN_FILE env vars)."""
+    return Path(path).read_text(encoding="utf-8").strip()
 
 
 @dataclass(frozen=True, slots=True)
@@ -50,6 +77,12 @@ class FleetConfig:
     state_path: str = DEFAULT_STATE_PATH
     prometheus_url: str | None = None
     namespace: str = DEFAULT_NAMESPACE
+    # Hardening (Day-2 slice 1). Secure-by-default: a non-loopback bind with no
+    # token refuses to start unless `insecure` is explicitly set.
+    insecure: bool = False
+    max_body_bytes: int = DEFAULT_MAX_BODY_BYTES
+    cors_origins: tuple[str, ...] = field(default_factory=tuple)
+    view_cache_ms: int = DEFAULT_VIEW_CACHE_MS
 
     @classmethod
     def resolve(
@@ -63,6 +96,10 @@ class FleetConfig:
         state_path: str | None = None,
         prometheus_url: str | None = None,
         namespace: str | None = None,
+        insecure: bool | None = None,
+        max_body_bytes: int | None = None,
+        cors_origins: tuple[str, ...] | None = None,
+        view_cache_ms: int | None = None,
         environ: dict[str, str] | None = None,
     ) -> FleetConfig:
         """Build a config from kwargs, falling back to env, then defaults.
@@ -76,7 +113,9 @@ class FleetConfig:
         return cls(
             host=cls._pick_str(host, env.get("ARGUS_FLEET_HOST"), DEFAULT_FLEET_HOST),
             port=cls._pick_int(port, env.get("ARGUS_FLEET_PORT"), DEFAULT_FLEET_PORT),
-            token=cls._pick_optional(token, env.get("ARGUS_FLEET_TOKEN")),
+            token=cls._pick_secret(
+                token, env.get("ARGUS_FLEET_TOKEN"), env.get("ARGUS_FLEET_TOKEN_FILE")
+            ),
             heartbeat_interval=cls._pick_int(
                 heartbeat_interval,
                 env.get("ARGUS_FLEET_HEARTBEAT_INTERVAL"),
@@ -90,7 +129,19 @@ class FleetConfig:
                 prometheus_url, env.get("ARGUS_FLEET_PROMETHEUS_URL")
             ),
             namespace=cls._pick_str(namespace, env.get("ARGUS_NAMESPACE"), DEFAULT_NAMESPACE),
+            insecure=cls._pick_bool(insecure, env.get("ARGUS_FLEET_INSECURE"), False),
+            max_body_bytes=cls._pick_int(
+                max_body_bytes, env.get("ARGUS_FLEET_MAX_BODY_BYTES"), DEFAULT_MAX_BODY_BYTES
+            ),
+            cors_origins=cls._pick_csv(cors_origins, env.get("ARGUS_FLEET_CORS_ORIGINS")),
+            view_cache_ms=cls._pick_int(
+                view_cache_ms, env.get("ARGUS_FLEET_VIEW_CACHE_MS"), DEFAULT_VIEW_CACHE_MS
+            ),
         )
+
+    def is_loopback(self) -> bool:
+        """True if the bind host is a loopback address (safe without a token)."""
+        return self.host in _LOOPBACK_HOSTS
 
     @staticmethod
     def _pick_str(kwarg: str | None, env_value: str | None, default: str) -> str:
@@ -113,3 +164,33 @@ class FleetConfig:
         if env_value is not None:
             return int(env_value)
         return default
+
+    @staticmethod
+    def _pick_bool(kwarg: bool | None, env_value: str | None, default: bool) -> bool:
+        if kwarg is not None:
+            return kwarg
+        if env_value is not None:
+            return _parse_bool(env_value)
+        return default
+
+    @staticmethod
+    def _pick_secret(
+        kwarg: str | None, env_value: str | None, file_env_value: str | None
+    ) -> str | None:
+        """Resolve a secret: kwarg, else env value, else the contents of a file."""
+        if kwarg is not None:
+            return kwarg
+        if env_value is not None:
+            return env_value
+        if file_env_value:
+            return _read_secret_file(file_env_value)
+        return None
+
+    @staticmethod
+    def _pick_csv(kwarg: tuple[str, ...] | None, env_value: str | None) -> tuple[str, ...]:
+        """Resolve a comma-separated list to a tuple, dropping empty entries."""
+        if kwarg is not None:
+            return kwarg
+        if env_value is not None:
+            return tuple(part.strip() for part in env_value.split(",") if part.strip())
+        return ()
