@@ -66,7 +66,7 @@ export function FleetApp({ token, version }: { token: string | null; version: st
         </nav>
 
         {cluster && group ? (
-          <Cluster cluster={cluster} fleet={group.name} />
+          <Cluster cluster={cluster} fleet={group.name} token={token} />
         ) : group ? (
           <Fleet group={group} onCluster={setClusterNumber} />
         ) : (

@@ -346,3 +346,22 @@ body {
   opacity: 0.55;
   font-size: 13px;
 }
+
+.trend-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: var(--space-4, 16px);
+}
+
+.trend-cell {
+  padding: var(--space-4, 16px);
+  border-radius: var(--radius-lg, 20px);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.trend-cell .sparkline {
+  color: var(--azure-500, #2e7df6);
+  margin-top: 4px;
+}

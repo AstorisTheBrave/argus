@@ -2,7 +2,12 @@
 // Copyright (C) 2026 AstorisTheBrave
 
 import { METRIC_META, formatMetric, qualityOf } from "./format";
+import { seriesFor, useClusterHistory } from "./history";
+import { Sparkline } from "./Sparkline";
 import type { ClusterView, FleetGroupView, FleetView } from "./types";
+
+// Keys worth a trend line on the cluster drill-down.
+const TREND_KEYS = ["guilds", "latency_seconds", "error_rate", "interactions_rate"];
 
 function RollupCards({ metrics }: { metrics: Record<string, number> }) {
   return (
@@ -96,7 +101,16 @@ export function Fleet({
   );
 }
 
-export function Cluster({ cluster, fleet }: { cluster: ClusterView; fleet: string }) {
+export function Cluster({
+  cluster,
+  fleet,
+  token,
+}: {
+  cluster: ClusterView;
+  fleet: string;
+  token: string | null;
+}) {
+  const history = useClusterHistory(token, fleet, cluster.number);
   return (
     <div className="section">
       <h2>
@@ -109,6 +123,21 @@ export function Cluster({ cluster, fleet }: { cluster: ClusterView; fleet: strin
         {cluster.identity} - last seen {cluster.last_seen}
       </p>
       <RollupCards metrics={cluster.metrics} />
+      <h3>Trends</h3>
+      <div className="trend-grid">
+        {TREND_KEYS.map((key) => {
+          const meta = METRIC_META.find((m) => m.key === key);
+          return (
+            <div key={key} className="nimble-glass--flat trend-cell">
+              <div className="label">{meta?.label ?? key}</div>
+              <div className="value nimble-mono">
+                {formatMetric(key, cluster.metrics[key] ?? 0)}
+              </div>
+              <Sparkline values={seriesFor(history, key)} />
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }

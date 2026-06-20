@@ -42,6 +42,7 @@ from argus.dashboard.server import STATIC_DIR
 from argus.fleet.metrics import FleetMetrics
 from argus.fleet.ratelimit import KeyedRateLimiter
 from argus.fleet.sources.base import ClusterValues, assemble
+from argus.fleet.trend import TrendStore
 from argus.fleet.watch import IdentityWatch
 
 log = logging.getLogger("argus.fleet")
@@ -210,6 +211,7 @@ def build_fleet_app(
     register_limiter = KeyedRateLimiter(config.register_burst)
     heartbeat_limiter = KeyedRateLimiter(config.heartbeat_burst)
     identity_watch = IdentityWatch()
+    trends = TrendStore()
 
     def _note_identity(identity: str, request: web.Request) -> None:
         remote = _client_ip(request, config.trusted_proxy)
@@ -299,6 +301,12 @@ def build_fleet_app(
                     # Fall back to registry topology (up/down) with zeroed metrics.
                     log.warning("data source failed; serving registry topology only", exc_info=True)
                     view = assemble(registry, ClusterValues())
+            # Record a trend point per cluster for the drill-down sparkline.
+            trends.record_all(
+                (c.identity, view.generated_at, c.metrics)
+                for group in view.fleets
+                for c in group.clusters
+            )
             cache_data = view.to_dict()
             cache_at = loop.time()
             return cache_data
@@ -319,7 +327,8 @@ def build_fleet_app(
         cluster = next((c for c in clusters if c.get("number") == number), None)
         if cluster is None:
             raise web.HTTPNotFound(text="cluster not found\n")
-        return web.json_response({"cluster": cluster, "history": []})
+        identity = str(cluster.get("identity", ""))
+        return web.json_response({"cluster": cluster, "history": trends.history(identity)})
 
     async def targets(_request: web.Request) -> web.StreamResponse:
         # Prometheus http_sd: one entry per cluster that advertised an address,
