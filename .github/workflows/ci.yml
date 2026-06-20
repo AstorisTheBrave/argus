@@ -66,13 +66,17 @@ jobs:
     services:
       clickhouse:
         image: clickhouse/clickhouse-server:24.8
+        env:
+          CLICKHOUSE_USER: argus
+          CLICKHOUSE_PASSWORD: argus
+          CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: "1"
         ports:
           - 8123:8123
         options: >-
-          --health-cmd "clickhouse-client --query 'SELECT 1'"
+          --health-cmd "clickhouse-client --user argus --password argus --query 'SELECT 1'"
           --health-interval 5s --health-timeout 3s --health-retries 20
     env:
-      CLICKHOUSE_DSN: http://localhost:8123
+      CLICKHOUSE_DSN: http://argus:argus@localhost:8123
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-python@v6
