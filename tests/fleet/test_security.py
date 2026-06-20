@@ -36,3 +36,15 @@ def test_token_file_satisfies_secure_bind(tmp_path: Path) -> None:
     secret.write_text("s3cret", encoding="utf-8")
     cfg = FleetConfig.resolve(host="0.0.0.0", environ={"ARGUS_FLEET_TOKEN_FILE": str(secret)})
     ensure_secure_bind(cfg)  # token came from the file, so the bind is allowed
+
+
+def test_refuse_when_only_ingest_token_set() -> None:
+    # The viewer surface would be open; refuse.
+    cfg = FleetConfig.resolve(host="0.0.0.0", ingest_token="ing", environ={})
+    with pytest.raises(RuntimeError, match="refusing to bind"):
+        ensure_secure_bind(cfg)
+
+
+def test_allowed_with_both_split_tokens() -> None:
+    cfg = FleetConfig.resolve(host="0.0.0.0", ingest_token="ing", viewer_token="view", environ={})
+    ensure_secure_bind(cfg)  # both surfaces protected

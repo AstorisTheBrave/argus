@@ -101,6 +101,25 @@ def test_token_env_beats_token_file(tmp_path: Path) -> None:
     assert cfg.token == "fromenv"
 
 
+def test_split_tokens_env_and_effective() -> None:
+    env = {"ARGUS_FLEET_INGEST_TOKEN": "ing", "ARGUS_FLEET_VIEWER_TOKEN": "view"}
+    cfg = FleetConfig.resolve(environ=env)
+    assert cfg.effective_ingest_token() == "ing"
+    assert cfg.effective_viewer_token() == "view"
+
+
+def test_shared_token_is_fallback_for_both() -> None:
+    cfg = FleetConfig.resolve(token="shared", environ={})
+    assert cfg.effective_ingest_token() == "shared"
+    assert cfg.effective_viewer_token() == "shared"
+
+
+def test_specific_token_beats_shared_per_surface() -> None:
+    cfg = FleetConfig.resolve(token="shared", ingest_token="ing", environ={})
+    assert cfg.effective_ingest_token() == "ing"
+    assert cfg.effective_viewer_token() == "shared"
+
+
 def test_is_loopback() -> None:
     assert FleetConfig.resolve(host="127.0.0.1", environ={}).is_loopback() is True
     assert FleetConfig.resolve(host="localhost", environ={}).is_loopback() is True

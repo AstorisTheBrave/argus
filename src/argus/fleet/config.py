@@ -72,6 +72,10 @@ class FleetConfig:
     host: str = DEFAULT_FLEET_HOST
     port: int = DEFAULT_FLEET_PORT
     token: str | None = None
+    # Optional split-token model: a low-privilege ingest token (on every bot) and
+    # a viewer token (operators). Either falls back to the shared `token`.
+    ingest_token: str | None = None
+    viewer_token: str | None = None
     heartbeat_interval: int = DEFAULT_HEARTBEAT_INTERVAL
     ttl_factor: int = DEFAULT_TTL_FACTOR
     state_path: str = DEFAULT_STATE_PATH
@@ -91,6 +95,8 @@ class FleetConfig:
         host: str | None = None,
         port: int | None = None,
         token: str | None = None,
+        ingest_token: str | None = None,
+        viewer_token: str | None = None,
         heartbeat_interval: int | None = None,
         ttl_factor: int | None = None,
         state_path: str | None = None,
@@ -115,6 +121,16 @@ class FleetConfig:
             port=cls._pick_int(port, env.get("ARGUS_FLEET_PORT"), DEFAULT_FLEET_PORT),
             token=cls._pick_secret(
                 token, env.get("ARGUS_FLEET_TOKEN"), env.get("ARGUS_FLEET_TOKEN_FILE")
+            ),
+            ingest_token=cls._pick_secret(
+                ingest_token,
+                env.get("ARGUS_FLEET_INGEST_TOKEN"),
+                env.get("ARGUS_FLEET_INGEST_TOKEN_FILE"),
+            ),
+            viewer_token=cls._pick_secret(
+                viewer_token,
+                env.get("ARGUS_FLEET_VIEWER_TOKEN"),
+                env.get("ARGUS_FLEET_VIEWER_TOKEN_FILE"),
             ),
             heartbeat_interval=cls._pick_int(
                 heartbeat_interval,
@@ -142,6 +158,14 @@ class FleetConfig:
     def is_loopback(self) -> bool:
         """True if the bind host is a loopback address (safe without a token)."""
         return self.host in _LOOPBACK_HOSTS
+
+    def effective_ingest_token(self) -> str | None:
+        """Token required for register/heartbeat (specific, else the shared one)."""
+        return self.ingest_token or self.token
+
+    def effective_viewer_token(self) -> str | None:
+        """Token required for the UI and read APIs (specific, else the shared one)."""
+        return self.viewer_token or self.token
 
     @staticmethod
     def _pick_str(kwarg: str | None, env_value: str | None, default: str) -> str:

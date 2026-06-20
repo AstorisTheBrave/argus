@@ -75,6 +75,26 @@ async def test_healthz_open_other_routes_gated(aiohttp_client: Any, tmp_path: Pa
     assert ok.status == 200
 
 
+async def test_split_tokens_gate_their_surfaces(aiohttp_client: Any, tmp_path: Path) -> None:
+    client = await aiohttp_client(_app(tmp_path, ingest_token="ing", viewer_token="view"))
+    # Register (ingest path) accepts the ingest token, rejects the viewer token.
+    ok = await client.post(
+        "/fleet/register",
+        json={"identity": "a", "fleet": "asia"},
+        headers={"Authorization": "Bearer ing"},
+    )
+    assert ok.status == 200
+    bad = await client.post(
+        "/fleet/register",
+        json={"identity": "b", "fleet": "asia"},
+        headers={"Authorization": "Bearer view"},
+    )
+    assert bad.status == 401
+    # The view (viewer path) accepts the viewer token, rejects the ingest token.
+    assert (await client.get("/api/fleet/view?token=view")).status == 200
+    assert (await client.get("/api/fleet/view?token=ing")).status == 401
+
+
 async def test_register_with_token(aiohttp_client: Any, tmp_path: Path) -> None:
     client = await aiohttp_client(_app(tmp_path, token="secret"))
     resp = await client.post(
