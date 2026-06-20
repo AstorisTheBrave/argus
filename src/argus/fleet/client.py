@@ -88,7 +88,9 @@ class FleetClient:
 
     async def start(self, snapshot_provider: SnapshotProvider | None = None) -> None:
         """Register, then run the heartbeat loop until :meth:`aclose`."""
-        self._session = aiohttp.ClientSession()
+        # Bound every call so a hung control plane cannot hold the single
+        # in-flight heartbeat for aiohttp's 5-minute client default.
+        self._session = aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=10))
         await self._register()
         self._task = asyncio.create_task(self._loop(snapshot_provider))
 

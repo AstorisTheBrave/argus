@@ -136,3 +136,6 @@ class FleetDataSource(ABC):
     async def fleet_snapshot(self, registry: Registry) -> FleetView:
         """Produce a complete FleetView by joining values with registry topology."""
         return assemble(registry, await self.cluster_values(registry))
+
+    async def aclose(self) -> None:  # noqa: B027 - optional override, default no-op
+        """Release any held resources (e.g. an HTTP session). Default: no-op."""

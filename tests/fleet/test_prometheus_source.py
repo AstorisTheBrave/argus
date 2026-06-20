@@ -18,6 +18,10 @@ class _FakeClient:
 
     def __init__(self, namespace: str = "discord") -> None:
         self._errors_q, self._commands_q = error_total_queries(namespace)
+        self.closed = False
+
+    async def aclose(self) -> None:
+        self.closed = True
 
     async def query(self, promql: str) -> list[tuple[dict[str, str], float]]:
         if promql == self._errors_q:
@@ -87,3 +91,13 @@ async def test_http_query_client_parses_prometheus_response(aiohttp_server: Any)
 
     rows = await client.query("up")
     assert _by_cluster(rows) == {"a": 3.0, "b": 7.0}
+    # The session is reused across queries, then closed.
+    await client.query("up")
+    await client.aclose()
+
+
+async def test_prometheus_source_aclose_closes_client(tmp_path: Path) -> None:
+    client = _FakeClient()
+    source = PrometheusSource("http://prom", "discord", client=client)
+    await source.aclose()
+    assert client.closed is True

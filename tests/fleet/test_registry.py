@@ -100,6 +100,7 @@ def test_persistence_round_trip(tmp_path: Path) -> None:
     reg.register("a", "asia", now=1.0)
     reg.register("b", "europe", now=2.0)
     reg.heartbeat("a", snapshot={"metrics": {"x": 1}}, now=3.0)
+    reg.save()  # mutations coalesce; persistence happens on flush/save
     # A fresh registry over the same file restores counters + entries.
     reloaded = Registry(state_path=path)
     entries = {e.identity: e for e in reloaded.entries()}
@@ -113,3 +114,22 @@ def test_persistence_round_trip(tmp_path: Path) -> None:
 def test_load_no_file_starts_empty(tmp_path: Path) -> None:
     reg = Registry(state_path=tmp_path / "missing.json")
     assert reg.entries() == []
+
+
+def test_mutations_coalesce_no_write_until_flush(tmp_path: Path) -> None:
+    path = tmp_path / "state.json"
+    reg = Registry(state_path=path)
+    reg.register("a", "asia", now=0.0)
+    # Registration does not touch disk; it only marks the registry dirty.
+    assert not path.exists()
+    payload = reg.flush_payload()
+    assert payload is not None
+    reg.write_payload(payload)
+    assert path.exists()
+    # A second flush with no new mutation returns None (nothing to write).
+    assert reg.flush_payload() is None
+
+
+def test_flush_payload_none_when_clean(tmp_path: Path) -> None:
+    reg = Registry(state_path=tmp_path / "state.json")
+    assert reg.flush_payload() is None  # nothing registered, not dirty
