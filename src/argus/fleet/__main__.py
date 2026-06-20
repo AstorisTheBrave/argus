@@ -36,6 +36,7 @@ from pathlib import Path
 from argus.exposition.server import start_server
 from argus.fleet import doctor, wizard
 from argus.fleet.config import FleetConfig
+from argus.fleet.lock import StateLock
 from argus.fleet.registry import Registry
 from argus.fleet.server import build_fleet_app, ensure_secure_bind
 from argus.fleet.sources.base import FleetDataSource
@@ -73,13 +74,21 @@ def load_dotenv_if_available(environ: dict[str, str] | None = None) -> bool:
 
 async def _serve(config: FleetConfig) -> None:
     ensure_secure_bind(config)
-    registry = Registry(config.state_path, config.heartbeat_interval, config.ttl_factor)
+    lock = StateLock(config.state_path)
+    lock.acquire()  # refuse a second instance sharing this state file
+    registry = Registry(
+        config.state_path,
+        config.heartbeat_interval,
+        config.ttl_factor,
+        config.retention_days,
+    )
     app = build_fleet_app(config, registry, build_source(config))
     runner = await start_server(app, config.host, config.port)
     try:
         await asyncio.Event().wait()  # run until cancelled
     finally:
         await runner.cleanup()
+        lock.release()
 
 
 def _cmd_run() -> int:
@@ -123,7 +132,9 @@ def _cmd_init(args: argparse.Namespace, *, interactive: bool | None = None) -> i
 
 
 def _cmd_doctor(args: argparse.Namespace) -> int:
-    report = asyncio.run(doctor.check(args.url, args.token, timeout=args.timeout))
+    report = asyncio.run(
+        doctor.check(args.url, args.token, namespace=args.namespace, timeout=args.timeout)
+    )
     for finding in report.findings:
         print(finding)
     return 0 if report.ok else 1
@@ -148,6 +159,7 @@ def _build_parser() -> argparse.ArgumentParser:
     doctor_p = sub.add_parser("doctor", help="probe a running control plane")
     doctor_p.add_argument("--url", required=True, help="fleet base URL, e.g. http://host:9190")
     doctor_p.add_argument("--token", default=None)
+    doctor_p.add_argument("--namespace", default=None, help="expected metric namespace")
     doctor_p.add_argument("--timeout", type=float, default=10.0)
     return parser
 

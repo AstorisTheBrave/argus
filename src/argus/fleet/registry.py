@@ -36,6 +36,11 @@ from typing import Any
 STATUS_UP = "up"
 STATUS_DOWN = "down"
 
+# Bump only on an incompatible on-disk format change; load refuses unknown
+# versions rather than silently truncating.
+SCHEMA_VERSION = 1
+_SECONDS_PER_DAY = 86400
+
 
 @dataclass(slots=True)
 class ClusterEntry:
@@ -63,6 +68,7 @@ class Registry:
         "_dirty",
         "_entries",
         "_heartbeat_interval",
+        "_retention_days",
         "_state_path",
         "_ttl_factor",
     )
@@ -72,10 +78,12 @@ class Registry:
         state_path: str | Path = "argus-fleet-state.json",
         heartbeat_interval: int = 15,
         ttl_factor: int = 3,
+        retention_days: int = 0,
     ) -> None:
         self._state_path = Path(state_path)
         self._heartbeat_interval = heartbeat_interval
         self._ttl_factor = ttl_factor
+        self._retention_days = retention_days
         self._counters: dict[str, int] = {}
         self._entries: dict[str, ClusterEntry] = {}
         self._dirty = False
@@ -140,7 +148,36 @@ class Registry:
         for entry in self._entries.values():
             entry.status = STATUS_UP if stamp - entry.last_seen <= ttl else STATUS_DOWN
 
+    def prune(self, now: float | None = None) -> int:
+        """Drop entries down longer than ``retention_days`` (0 = never). Return count.
+
+        Per-fleet counters are untouched, so pruned numbers are still never
+        reused. Call after :meth:`sweep` so statuses are current.
+        """
+        if self._retention_days <= 0:
+            return 0
+        stamp = time.time() if now is None else now
+        cutoff = self._retention_days * _SECONDS_PER_DAY
+        stale = [
+            identity
+            for identity, entry in self._entries.items()
+            if entry.status == STATUS_DOWN and stamp - entry.last_seen > cutoff
+        ]
+        for identity in stale:
+            del self._entries[identity]
+        if stale:
+            self._dirty = True
+        return len(stale)
+
     # -- reads ------------------------------------------------------------
+
+    def knows(self, identity: str) -> bool:
+        """True if ``identity`` is already registered (re-register, not new)."""
+        return identity in self._entries
+
+    def count(self) -> int:
+        """Number of registered clusters (up and down)."""
+        return len(self._entries)
 
     def entries(self) -> list[ClusterEntry]:
         """All entries, ordered by fleet then number for stable display."""
@@ -165,6 +202,7 @@ class Registry:
 
     def _serialize(self) -> str:
         payload = {
+            "version": SCHEMA_VERSION,
             "counters": self._counters,
             "entries": [asdict(entry) for entry in self._entries.values()],
         }
@@ -193,6 +231,14 @@ class Registry:
         if not self._state_path.exists():
             return
         payload = json.loads(self._state_path.read_text(encoding="utf-8"))
+        # Files predating versioning have no "version" key; treat as the current
+        # format. An explicit unknown version refuses to load (no truncation).
+        version = int(payload.get("version", SCHEMA_VERSION))
+        if version != SCHEMA_VERSION:
+            raise RuntimeError(
+                f"unsupported fleet state schema version {version} "
+                f"(expected {SCHEMA_VERSION}); refusing to load {self._state_path}"
+            )
         self._counters = {str(k): int(v) for k, v in payload.get("counters", {}).items()}
         self._entries = {}
         for raw in payload.get("entries", []):

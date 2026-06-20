@@ -39,6 +39,7 @@ from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 from argus import __version__
 from argus.dashboard.server import STATIC_DIR
 from argus.fleet.metrics import FleetMetrics
+from argus.fleet.ratelimit import KeyedRateLimiter
 
 if TYPE_CHECKING:
     from argus.fleet.config import FleetConfig
@@ -182,6 +183,9 @@ def build_fleet_app(
     app = web.Application(middlewares=middlewares, client_max_size=config.max_body_bytes)
     app.on_response_prepare.append(_harden_response)
     metrics = FleetMetrics(registry)
+    # Abuse resistance: per-IP register limit, per-identity heartbeat limit.
+    register_limiter = KeyedRateLimiter(config.register_burst)
+    heartbeat_limiter = KeyedRateLimiter(config.heartbeat_burst)
 
     async def health(_request: web.Request) -> web.StreamResponse:
         return web.Response(text="ok\n")
@@ -211,6 +215,10 @@ def build_fleet_app(
         identity = str(body.get("identity") or "")
         if not identity:
             raise web.HTTPBadRequest(text="identity required\n")
+        if not register_limiter.allow(request.remote or "unknown"):
+            raise web.HTTPTooManyRequests(text="register rate exceeded\n")
+        if not registry.knows(identity) and registry.count() >= config.max_clusters:
+            raise web.HTTPForbidden(text="fleet cluster cap reached\n")
         fleet = str(body.get("fleet") or "default")
         version = str(body.get("version") or "")
         number = registry.register(identity, fleet, version)
@@ -222,6 +230,8 @@ def build_fleet_app(
         identity = str(body.get("identity") or "")
         if not identity:
             raise web.HTTPBadRequest(text="identity required\n")
+        if not heartbeat_limiter.allow(identity):
+            raise web.HTTPTooManyRequests(text="heartbeat rate exceeded\n")
         snapshot = body.get("snapshot")
         registry.heartbeat(identity, snapshot if isinstance(snapshot, dict) else None)
         metrics.heartbeats.inc()
@@ -278,6 +288,7 @@ def build_fleet_app(
         while True:
             await asyncio.sleep(config.heartbeat_interval)
             registry.sweep()
+            registry.prune()  # drop long-dead entries when retention is enabled
             # Coalesced, off-loop persistence: serialize on the loop, write on a
             # thread so a slow disk never stalls heartbeat handling.
             payload = registry.flush_payload()

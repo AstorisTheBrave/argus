@@ -122,6 +122,41 @@ async def test_cluster_view_bad_query(aiohttp_client: Any, tmp_path: Path) -> No
     assert (await client.get("/api/fleet/cluster?fleet=asia")).status == 400
 
 
+async def test_register_rate_limited(aiohttp_client: Any, tmp_path: Path) -> None:
+    client = await aiohttp_client(_app(tmp_path, register_burst=2))
+    statuses = []
+    for i in range(3):
+        resp = await client.post("/fleet/register", json={"identity": f"id{i}", "fleet": "asia"})
+        statuses.append(resp.status)
+    assert statuses[:2] == [200, 200]
+    assert statuses[2] == 429  # burst of 2 exhausted from one IP
+
+
+async def test_max_clusters_cap(aiohttp_client: Any, tmp_path: Path) -> None:
+    client = await aiohttp_client(_app(tmp_path, max_clusters=2, register_burst=100))
+    for i in range(2):
+        assert (
+            await client.post("/fleet/register", json={"identity": f"id{i}", "fleet": "asia"})
+        ).status == 200
+    over = await client.post("/fleet/register", json={"identity": "id2", "fleet": "asia"})
+    assert over.status == 403  # new identity past the cap is rejected
+    # A known identity can still re-register (no new slot consumed).
+    assert (
+        await client.post("/fleet/register", json={"identity": "id0", "fleet": "asia"})
+    ).status == 200
+
+
+async def test_heartbeat_rate_limited(aiohttp_client: Any, tmp_path: Path) -> None:
+    client = await aiohttp_client(_app(tmp_path, heartbeat_burst=2, register_burst=100))
+    await client.post("/fleet/register", json={"identity": "a", "fleet": "asia"})
+    statuses = []
+    for _ in range(3):
+        resp = await client.post("/fleet/heartbeat", json={"identity": "a"})
+        statuses.append(resp.status)
+    assert statuses[:2] == [204, 204]
+    assert statuses[2] == 429
+
+
 async def test_heartbeat_requires_identity(aiohttp_client: Any, tmp_path: Path) -> None:
     client = await aiohttp_client(_app(tmp_path))
     assert (await client.post("/fleet/heartbeat", json={})).status == 400

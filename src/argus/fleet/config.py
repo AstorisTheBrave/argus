@@ -39,6 +39,13 @@ DEFAULT_MAX_BODY_BYTES = 262144
 # Short cache so N concurrent viewers share one view computation / Prometheus
 # query batch instead of each triggering a recompute.
 DEFAULT_VIEW_CACHE_MS = 1000
+# Abuse caps. Bursts are token-bucket capacities refilled over 60s; the cluster
+# cap bounds registry growth from a registration flood. Generous by default.
+DEFAULT_MAX_CLUSTERS = 5000
+DEFAULT_REGISTER_BURST = 60
+DEFAULT_HEARTBEAT_BURST = 60
+# Optional: prune clusters down longer than this many days (0 = never, default).
+DEFAULT_RETENTION_DAYS = 0
 
 # Hosts that are safe to serve without a token (a token is still recommended).
 _LOOPBACK_HOSTS = frozenset({"127.0.0.1", "::1", "localhost"})
@@ -87,6 +94,10 @@ class FleetConfig:
     max_body_bytes: int = DEFAULT_MAX_BODY_BYTES
     cors_origins: tuple[str, ...] = field(default_factory=tuple)
     view_cache_ms: int = DEFAULT_VIEW_CACHE_MS
+    max_clusters: int = DEFAULT_MAX_CLUSTERS
+    register_burst: int = DEFAULT_REGISTER_BURST
+    heartbeat_burst: int = DEFAULT_HEARTBEAT_BURST
+    retention_days: int = DEFAULT_RETENTION_DAYS
 
     @classmethod
     def resolve(
@@ -106,6 +117,10 @@ class FleetConfig:
         max_body_bytes: int | None = None,
         cors_origins: tuple[str, ...] | None = None,
         view_cache_ms: int | None = None,
+        max_clusters: int | None = None,
+        register_burst: int | None = None,
+        heartbeat_burst: int | None = None,
+        retention_days: int | None = None,
         environ: dict[str, str] | None = None,
     ) -> FleetConfig:
         """Build a config from kwargs, falling back to env, then defaults.
@@ -152,6 +167,18 @@ class FleetConfig:
             cors_origins=cls._pick_csv(cors_origins, env.get("ARGUS_FLEET_CORS_ORIGINS")),
             view_cache_ms=cls._pick_int(
                 view_cache_ms, env.get("ARGUS_FLEET_VIEW_CACHE_MS"), DEFAULT_VIEW_CACHE_MS
+            ),
+            max_clusters=cls._pick_int(
+                max_clusters, env.get("ARGUS_FLEET_MAX_CLUSTERS"), DEFAULT_MAX_CLUSTERS
+            ),
+            register_burst=cls._pick_int(
+                register_burst, env.get("ARGUS_FLEET_REGISTER_BURST"), DEFAULT_REGISTER_BURST
+            ),
+            heartbeat_burst=cls._pick_int(
+                heartbeat_burst, env.get("ARGUS_FLEET_HEARTBEAT_BURST"), DEFAULT_HEARTBEAT_BURST
+            ),
+            retention_days=cls._pick_int(
+                retention_days, env.get("ARGUS_FLEET_RETENTION_DAYS"), DEFAULT_RETENTION_DAYS
             ),
         )
 
