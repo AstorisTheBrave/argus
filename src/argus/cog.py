@@ -65,6 +65,7 @@ class ArgusCog(commands.Cog):
         self.registry.set_info(self.names.bot_info, bot_info_values())
         self._runner: Any = None
         self._analytics_client: Any = None
+        self._fleet_client: Any = None
         # Register listeners synchronously; additive, safe before the bot logs in.
         self._registration: Registration = register(bot, self.instrumentation)
 
@@ -126,9 +127,29 @@ class ArgusCog(commands.Cog):
             self.config.port,
             self.config.metrics_path,
         )
+        await self._start_fleet_client()
+
+    async def _start_fleet_client(self) -> None:
+        """Start the opt-in fleet client (fail-open; no-op unless fleet_url set)."""
+        if not self.config.fleet_url:
+            return
+        from argus.dashboard.snapshot import build_snapshot
+        from argus.fleet.client import FleetClient
+
+        try:
+            client = FleetClient(self.config)
+            await client.start(lambda: build_snapshot(self.adapter.registry))
+            self._fleet_client = client
+            log.info("argus fleet client reporting to %s", self.config.fleet_url)
+        except Exception:  # never let fleet wiring break the bot (invariant 5)
+            log.debug("argus fleet client failed to start", exc_info=True)
+            self._fleet_client = None
 
     async def cog_unload(self) -> None:
         self._registration.remove()
+        if self._fleet_client is not None:
+            await self._fleet_client.aclose()
+            self._fleet_client = None
         if self._runner is not None:
             await self._runner.cleanup()
             self._runner = None
