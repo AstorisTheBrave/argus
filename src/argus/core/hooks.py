@@ -24,6 +24,7 @@ Rate-limit/log signal comes from a handler on the ``discord`` logger.
 
 from __future__ import annotations
 
+import contextlib
 import logging
 from dataclasses import dataclass, field
 from typing import Any
@@ -50,10 +51,9 @@ class Registration:
         self._removed = True
         logging.getLogger(_DISCORD_LOGGER).removeHandler(self.log_handler)
         for name, fn in self.listeners:
-            try:
+            # bot may already be torn down
+            with contextlib.suppress(Exception):
                 self.bot.remove_listener(fn, name)
-            except Exception:  # pragma: no cover - bot may already be torn down
-                pass
         if self.tree is not None and self.tree_original is not None:
             self.tree.on_error = self.tree_original
 

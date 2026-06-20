@@ -79,7 +79,28 @@ target-version = "py310"
 line-length = 100
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "UP", "B", "ASYNC"]
+select = [
+    "E",      # pycodestyle errors
+    "W",      # pycodestyle warnings
+    "F",      # pyflakes
+    "I",      # isort
+    "UP",     # pyupgrade
+    "B",      # flake8-bugbear
+    "ASYNC",  # flake8-async
+    "SIM",    # flake8-simplify
+    "C4",     # flake8-comprehensions
+    "PIE",    # flake8-pie
+    "RET",    # flake8-return
+    "TID",    # flake8-tidy-imports
+    "PTH",    # flake8-use-pathlib
+    "LOG",    # flake8-logging
+    "PERF",   # perflint
+    "RUF",    # ruff-specific
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Tests favour explicit `list(...)[0]` and nested `with` for readability.
+"tests/**" = ["RUF015", "SIM117"]
 
 [tool.coverage.run]
 source = ["src/argus"]

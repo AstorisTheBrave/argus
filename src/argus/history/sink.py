@@ -43,7 +43,7 @@ class EventSink(ABC):
 
     async def aclose(self) -> None:
         """Flush and release resources. Default no-op."""
-        return None
+        return
 
 
 class NullSink(EventSink):
@@ -110,11 +110,9 @@ class BatchingSink(EventSink):
             get.cancel()  # nothing was dequeued; safe to cancel
         if wake not in done:
             wake.cancel()
-        while len(batch) < self._batch_size:
-            try:
-                batch.append(self._queue.get_nowait())
-            except asyncio.QueueEmpty:
-                break
+        # Single-consumer worker, so empty() -> get_nowait() cannot race.
+        while len(batch) < self._batch_size and not self._queue.empty():
+            batch.append(self._queue.get_nowait())
         return batch
 
     async def aclose(self) -> None:

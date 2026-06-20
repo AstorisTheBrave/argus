@@ -27,6 +27,7 @@ grow without bound.
 
 from __future__ import annotations
 
+import contextlib
 import logging
 import time
 from collections import OrderedDict
@@ -74,10 +75,8 @@ class Instrumentation:
 
     # --- fail-open wrapper (invariant 5) ---
     def _count_error(self, hook: str) -> None:
-        try:
+        with contextlib.suppress(Exception):  # pragma: no cover - the counter itself failed
             self._registry.inc(self._n.instrumentation_errors_total, self._labels(hook=hook))
-        except Exception:  # pragma: no cover - the counter itself failed
-            pass
 
     def _safe(self, hook: str, fn: Callable[..., None], *args: Any) -> None:
         try:
@@ -242,9 +241,12 @@ class Instrumentation:
         self._registry.inc(
             self._n.log_records_total, self._labels(logger=record.name, level=record.levelname)
         )
-        if record.name == "discord.http" and record.levelno >= logging.WARNING:
-            if "rate limit" in record.getMessage().lower():
-                self._registry.inc(self._n.ratelimits_total, self._labels())
+        if (
+            record.name == "discord.http"
+            and record.levelno >= logging.WARNING
+            and "rate limit" in record.getMessage().lower()
+        ):
+            self._registry.inc(self._n.ratelimits_total, self._labels())
 
 
 class DiscordLogHandler(logging.Handler):
