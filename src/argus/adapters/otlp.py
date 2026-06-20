@@ -40,7 +40,7 @@ ObservationFactory = Callable[[float, Mapping[str, str]], Any]
 
 
 class _Obs:
-    __slots__ = ("value", "attributes")
+    __slots__ = ("attributes", "value")
 
     def __init__(self, value: float, attributes: Mapping[str, str]) -> None:
         self.value = value
