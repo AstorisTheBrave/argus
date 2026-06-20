@@ -143,3 +143,9 @@ def test_fleet_kwargs_override_env() -> None:
     cfg = ArgusConfig.resolve(fleet_group="europe", fleet_url="http://x", environ=env)
     assert cfg.fleet_group == "europe"
     assert cfg.fleet_url == "http://x"
+
+
+def test_fleet_scrape_target() -> None:
+    assert ArgusConfig.resolve(environ={}).fleet_scrape_target is None
+    cfg = ArgusConfig.resolve(environ={"ARGUS_FLEET_SCRAPE_TARGET": "10.0.0.5:9191"})
+    assert cfg.fleet_scrape_target == "10.0.0.5:9191"

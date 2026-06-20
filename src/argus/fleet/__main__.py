@@ -127,7 +127,11 @@ def _cmd_init(args: argparse.Namespace, *, interactive: bool | None = None) -> i
     print("  # or: pip install 'argus-dpy[fleet]' && python -m argus.fleet")
     print(f"  # or (systemd): {wizard.systemd_hint(paths['env'])}")
     print("\nOpt each bot in:\n  " + wizard.member_snippet(choices).replace("\n", "\n  "))
-    print("\nKeep .env secret; the token is shown there once.")
+    print(
+        "\nOptional Prometheus auto-discovery (members set ARGUS_FLEET_SCRAPE_TARGET):\n"
+        + wizard.prometheus_scrape_config(choices)
+    )
+    print("Keep .env secret; the token is shown there once.")
     return 0
 
 

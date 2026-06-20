@@ -99,13 +99,16 @@ class FleetClient:
 
         try:
             assert self._session is not None
+            body: dict[str, Any] = {
+                "identity": self._identity,
+                "fleet": self._config.fleet_group,
+                "version": __version__,
+            }
+            if self._config.fleet_scrape_target:
+                body["scrape_target"] = self._config.fleet_scrape_target
             async with self._session.post(
                 f"{self._config.fleet_url}/fleet/register",
-                json={
-                    "identity": self._identity,
-                    "fleet": self._config.fleet_group,
-                    "version": __version__,
-                },
+                json=body,
                 headers=self._headers(),
             ) as resp:
                 resp.raise_for_status()

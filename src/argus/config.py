@@ -80,6 +80,9 @@ class ArgusConfig:
     fleet_group: str = DEFAULT_FLEET_GROUP
     fleet_id: str | None = None
     fleet_state_dir: str = DEFAULT_FLEET_STATE_DIR
+    # Optional reachable "host:port" to advertise for Prometheus auto-discovery
+    # via the control plane's /api/fleet/targets (http_sd).
+    fleet_scrape_target: str | None = None
 
     @classmethod
     def resolve(
@@ -103,6 +106,7 @@ class ArgusConfig:
         fleet_group: str | None = None,
         fleet_id: str | None = None,
         fleet_state_dir: str | None = None,
+        fleet_scrape_target: str | None = None,
         environ: dict[str, str] | None = None,
     ) -> ArgusConfig:
         """Build a config from kwargs, falling back to env, then defaults.
@@ -149,6 +153,9 @@ class ArgusConfig:
             fleet_id=cls._pick_optional(fleet_id, env.get("ARGUS_FLEET_ID")),
             fleet_state_dir=cls._pick_str(
                 fleet_state_dir, env.get("ARGUS_FLEET_STATE_DIR"), DEFAULT_FLEET_STATE_DIR
+            ),
+            fleet_scrape_target=cls._pick_optional(
+                fleet_scrape_target, env.get("ARGUS_FLEET_SCRAPE_TARGET")
             ),
         )
 
