@@ -3,8 +3,8 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { Global } from "./Views";
-import type { FleetView } from "./types";
+import { Cluster, Global } from "./Views";
+import type { ClusterView, FleetView } from "./types";
 
 afterEach(cleanup);
 
@@ -53,5 +53,23 @@ describe("Global", () => {
       />,
     );
     expect(screen.getByText(/No clusters have registered/)).toBeTruthy();
+  });
+});
+
+describe("Cluster", () => {
+  const cluster: ClusterView = {
+    number: 1,
+    identity: "asia-0",
+    fleet: "asia",
+    status: "up",
+    last_seen: "2026-06-21T00:00:00+00:00",
+    metrics: { guilds: 12 },
+  };
+
+  it("renders the cluster header, metrics, and a Trends section", () => {
+    // The history hook's fetch fails gracefully under jsdom -> empty sparklines.
+    render(<Cluster cluster={cluster} fleet="asia" token={null} />);
+    expect(screen.getByText(/asia-0/)).toBeTruthy();
+    expect(screen.getByText("Trends")).toBeTruthy();
   });
 });

@@ -118,9 +118,31 @@ async def test_cluster_view_found_and_missing(aiohttp_client: Any, tmp_path: Pat
     assert ok.status == 200
     body = await ok.json()
     assert body["cluster"]["number"] == 1
-    assert body["history"] == []
+    assert isinstance(body["history"], list)  # populated as views are built
     missing = await client.get("/api/fleet/cluster?fleet=asia&number=99")
     assert missing.status == 404
+
+
+async def test_cluster_view_accumulates_history(aiohttp_client: Any, tmp_path: Path) -> None:
+    client = await aiohttp_client(_app(tmp_path))
+    await client.post(
+        "/fleet/register",
+        json={"identity": "a", "fleet": "asia", "scrape_target": ""},
+    )
+    snap = {
+        "metrics": {
+            "discord_guilds": {
+                "type": "gauge",
+                "samples": [{"name": "discord_guilds", "labels": {}, "value": 5}],
+            }
+        }
+    }
+    await client.post("/fleet/heartbeat", json={"identity": "a", "snapshot": snap})
+    # Each cluster fetch builds a fresh view (cache disabled in tests) and records.
+    await client.get("/api/fleet/cluster?fleet=asia&number=1")
+    body = await (await client.get("/api/fleet/cluster?fleet=asia&number=1")).json()
+    assert len(body["history"]) >= 1
+    assert body["history"][-1]["metrics"]["guilds"] == 5
 
 
 async def test_cluster_view_bad_query(aiohttp_client: Any, tmp_path: Path) -> None:
