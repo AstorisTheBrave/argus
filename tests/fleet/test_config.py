@@ -70,6 +70,26 @@ def test_hardening_defaults() -> None:
     assert cfg.view_cache_ms == 1000
 
 
+def test_abuse_cap_defaults_and_env() -> None:
+    cfg = FleetConfig.resolve(environ={})
+    assert cfg.max_clusters == 5000
+    assert cfg.register_burst == 60
+    assert cfg.heartbeat_burst == 60
+    assert cfg.retention_days == 0
+    cfg2 = FleetConfig.resolve(
+        environ={
+            "ARGUS_FLEET_MAX_CLUSTERS": "10",
+            "ARGUS_FLEET_REGISTER_BURST": "5",
+            "ARGUS_FLEET_HEARTBEAT_BURST": "7",
+            "ARGUS_FLEET_RETENTION_DAYS": "30",
+        }
+    )
+    assert cfg2.max_clusters == 10
+    assert cfg2.register_burst == 5
+    assert cfg2.heartbeat_burst == 7
+    assert cfg2.retention_days == 30
+
+
 def test_hardening_env_mapping() -> None:
     env = {
         "ARGUS_FLEET_INSECURE": "1",

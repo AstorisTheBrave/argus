@@ -142,6 +142,14 @@ class Registry:
 
     # -- reads ------------------------------------------------------------
 
+    def knows(self, identity: str) -> bool:
+        """True if ``identity`` is already registered (re-register, not new)."""
+        return identity in self._entries
+
+    def count(self) -> int:
+        """Number of registered clusters (up and down)."""
+        return len(self._entries)
+
     def entries(self) -> list[ClusterEntry]:
         """All entries, ordered by fleet then number for stable display."""
         return sorted(self._entries.values(), key=lambda e: (e.fleet, e.number))
