@@ -11,9 +11,11 @@ from argus.fleet.server import build_fleet_app
 from argus.fleet.sources.push import PushSource
 
 
-def _app(tmp_path: Path, token: str | None = None) -> Any:
+def _app(tmp_path: Path, token: str | None = None, **kwargs: Any) -> Any:
     config = FleetConfig.resolve(
-        token=token, environ={"ARGUS_FLEET_STATE": str(tmp_path / "s.json")}
+        token=token,
+        environ={"ARGUS_FLEET_STATE": str(tmp_path / "s.json")},
+        **kwargs,
     )
     registry = Registry(config.state_path, config.heartbeat_interval, config.ttl_factor)
     return build_fleet_app(config, registry, PushSource(config.namespace))
@@ -113,3 +115,41 @@ async def test_api_config_reports_fleet_mode(aiohttp_client: Any, tmp_path: Path
     body = await (await client.get("/api/config")).json()
     assert body["fleet"] is True
     assert body["auth_required"] is False
+
+
+async def test_security_headers_and_banner(aiohttp_client: Any, tmp_path: Path) -> None:
+    client = await aiohttp_client(_app(tmp_path))
+    resp = await client.get("/healthz")
+    assert resp.headers["Server"] == "argus-fleet"  # version banner stripped
+    assert resp.headers["X-Frame-Options"] == "DENY"
+    assert resp.headers["X-Content-Type-Options"] == "nosniff"
+    assert "Content-Security-Policy" in resp.headers
+
+
+async def test_readyz_open_even_with_token(aiohttp_client: Any, tmp_path: Path) -> None:
+    client = await aiohttp_client(_app(tmp_path, token="secret"))
+    assert (await client.get("/readyz")).status == 200
+
+
+async def test_body_cap_rejects_large_payload(aiohttp_client: Any, tmp_path: Path) -> None:
+    client = await aiohttp_client(_app(tmp_path, max_body_bytes=50))
+    big = {"identity": "a", "fleet": "asia", "pad": "x" * 1000}
+    assert (await client.post("/fleet/register", json=big)).status == 413
+
+
+async def test_cors_preflight_and_allowlist(aiohttp_client: Any, tmp_path: Path) -> None:
+    origins = ("https://ui.example",)
+    client = await aiohttp_client(_app(tmp_path, token="secret", cors_origins=origins))
+    # Preflight is not auth-gated and echoes only an allowlisted origin.
+    pre = await client.options("/api/fleet/view", headers={"Origin": "https://ui.example"})
+    assert pre.status == 204
+    assert pre.headers["Access-Control-Allow-Origin"] == "https://ui.example"
+    # A non-listed origin gets no allow header.
+    other = await client.options("/api/fleet/view", headers={"Origin": "https://evil.example"})
+    assert "Access-Control-Allow-Origin" not in other.headers
+
+
+async def test_no_cors_headers_when_disabled(aiohttp_client: Any, tmp_path: Path) -> None:
+    client = await aiohttp_client(_app(tmp_path))
+    resp = await client.get("/healthz", headers={"Origin": "https://ui.example"})
+    assert "Access-Control-Allow-Origin" not in resp.headers

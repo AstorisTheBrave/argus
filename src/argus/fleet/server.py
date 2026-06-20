@@ -27,10 +27,12 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+from collections.abc import Awaitable, Callable
 from dataclasses import asdict
 from typing import TYPE_CHECKING
 
 from aiohttp import web
+from aiohttp.typedefs import Middleware
 
 from argus import __version__
 from argus.dashboard.auth import make_auth_middleware
@@ -41,7 +43,57 @@ if TYPE_CHECKING:
     from argus.fleet.registry import Registry
     from argus.fleet.sources.base import FleetDataSource
 
+_Handler = Callable[[web.Request], Awaitable[web.StreamResponse]]
+
 _SWEEPER_KEY: web.AppKey[asyncio.Task[None]] = web.AppKey("argus_fleet_sweeper", asyncio.Task)
+
+# Generic banner: do not leak the Python/aiohttp versions to scanners. The
+# reverse proxy is the reliable layer (this signal does not fire on raw parser
+# errors), but stripping it here removes the easy fingerprint.
+_SERVER_BANNER = "argus-fleet"
+_SECURITY_HEADERS = {
+    "X-Content-Type-Options": "nosniff",
+    "X-Frame-Options": "DENY",
+    "Referrer-Policy": "no-referrer",
+    # Permissive enough for the bundled SPA (charts set inline styles) while
+    # blocking framing and foreign script/object sources.
+    "Content-Security-Policy": (
+        "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; "
+        "object-src 'none'; frame-ancestors 'none'"
+    ),
+}
+
+
+async def _harden_response(_request: web.Request, response: web.StreamResponse) -> None:
+    """Strip the version banner and add security headers to every response."""
+    response.headers["Server"] = _SERVER_BANNER
+    for name, value in _SECURITY_HEADERS.items():
+        response.headers[name] = value
+
+
+def _make_cors_middleware(origins: tuple[str, ...]) -> Middleware:
+    """Allowlist CORS for a detached UI; preflight is never auth-gated.
+
+    Only the explicitly listed origins are echoed back; no wildcard is ever sent
+    for this token-gated surface. With an empty allowlist this is not installed.
+    """
+    allowed = frozenset(origins)
+
+    @web.middleware
+    async def middleware(request: web.Request, handler: _Handler) -> web.StreamResponse:
+        origin = request.headers.get("Origin")
+        if request.method == "OPTIONS" and origin is not None:
+            response: web.StreamResponse = web.Response(status=204)
+        else:
+            response = await handler(request)
+        if origin is not None and origin in allowed:
+            response.headers["Access-Control-Allow-Origin"] = origin
+            response.headers["Vary"] = "Origin"
+            response.headers["Access-Control-Allow-Headers"] = "Authorization, Content-Type"
+            response.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
+        return response
+
+    return middleware
 
 
 def ensure_secure_bind(config: FleetConfig) -> None:
@@ -63,6 +115,8 @@ def ensure_secure_bind(config: FleetConfig) -> None:
 async def _read_json(request: web.Request) -> dict[str, object]:
     try:
         payload = await request.json()
+    except web.HTTPException:
+        raise  # e.g. 413 from the body-size cap; do not mask as 400
     except Exception as exc:  # any malformed body is a 400
         raise web.HTTPBadRequest(text="invalid JSON body\n") from exc
     if not isinstance(payload, dict):
@@ -74,10 +128,20 @@ def build_fleet_app(
     config: FleetConfig, registry: Registry, source: FleetDataSource
 ) -> web.Application:
     """Build the fleet aiohttp app: member, view, and SPA routes."""
-    app = web.Application(middlewares=[make_auth_middleware(config.token)])
+    # CORS (if any) sits outside auth so a browser preflight is never gated; the
+    # body cap rejects oversized snapshots with 413 before they reach a handler.
+    middlewares: list[Middleware] = []
+    if config.cors_origins:
+        middlewares.append(_make_cors_middleware(config.cors_origins))
+    middlewares.append(make_auth_middleware(config.token, frozenset({"/healthz", "/readyz"})))
+    app = web.Application(middlewares=middlewares, client_max_size=config.max_body_bytes)
+    app.on_response_prepare.append(_harden_response)
 
     async def health(_request: web.Request) -> web.StreamResponse:
         return web.Response(text="ok\n")
+
+    async def ready(_request: web.Request) -> web.StreamResponse:
+        return web.Response(text="ready\n")
 
     async def api_config(_request: web.Request) -> web.StreamResponse:
         return web.json_response(
@@ -150,6 +214,7 @@ def build_fleet_app(
                 await task
 
     app.router.add_get("/healthz", health)
+    app.router.add_get("/readyz", ready)
     app.router.add_get("/api/config", api_config)
     app.router.add_post("/fleet/register", register)
     app.router.add_post("/fleet/heartbeat", heartbeat)
