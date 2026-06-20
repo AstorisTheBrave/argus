@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.0](https://github.com/AstorisTheBrave/argus/compare/v0.2.1...v0.3.0) (2026-06-20)
+
+
+### Features
+
+* observability expansion, OTLP, analytics, dashboard, ops ([#9](https://github.com/AstorisTheBrave/argus/issues/9)) ([05dbd45](https://github.com/AstorisTheBrave/argus/commit/05dbd452ab5c9d3768357be07c4572a57310fbf0))
+
 ## [0.2.1](https://github.com/AstorisTheBrave/argus/compare/v0.2.0...v0.2.1) (2026-06-19)
 
 
