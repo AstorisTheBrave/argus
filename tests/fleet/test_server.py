@@ -213,6 +213,29 @@ async def test_no_cors_headers_when_disabled(aiohttp_client: Any, tmp_path: Path
     assert "Access-Control-Allow-Origin" not in resp.headers
 
 
+async def test_targets_http_sd(aiohttp_client: Any, tmp_path: Path) -> None:
+    client = await aiohttp_client(_app(tmp_path))
+    # A member that advertises a scrape target shows up; one that does not is omitted.
+    await client.post(
+        "/fleet/register",
+        json={"identity": "a", "fleet": "asia", "scrape_target": "10.0.0.5:9191"},
+    )
+    await client.post("/fleet/register", json={"identity": "b", "fleet": "asia"})
+    targets = await (await client.get("/api/fleet/targets")).json()
+    assert len(targets) == 1
+    entry = targets[0]
+    assert entry["targets"] == ["10.0.0.5:9191"]
+    assert entry["labels"]["cluster"] == "a"
+    assert entry["labels"]["fleet"] == "asia"
+    assert entry["labels"]["__metrics_path__"] == "/metrics"
+
+
+async def test_targets_gated_by_viewer_token(aiohttp_client: Any, tmp_path: Path) -> None:
+    client = await aiohttp_client(_app(tmp_path, token="secret"))
+    assert (await client.get("/api/fleet/targets")).status == 401
+    assert (await client.get("/api/fleet/targets?token=secret")).status == 200
+
+
 async def test_self_metrics_exposes_fleet_gauges(aiohttp_client: Any, tmp_path: Path) -> None:
     client = await aiohttp_client(_app(tmp_path))
     await client.post("/fleet/register", json={"identity": "a", "fleet": "asia"})

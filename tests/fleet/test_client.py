@@ -14,11 +14,12 @@ from argus.fleet.server import build_fleet_app
 from argus.fleet.sources.push import PushSource
 
 
-def _member_config(url: str, tmp_path: Path) -> ArgusConfig:
+def _member_config(url: str, tmp_path: Path, scrape_target: str | None = None) -> ArgusConfig:
     return ArgusConfig.resolve(
         fleet_url=url,
         fleet_group="asia",
         fleet_state_dir=str(tmp_path),
+        fleet_scrape_target=scrape_target,
         environ={},
     )
 
@@ -42,13 +43,14 @@ async def test_register_and_heartbeat_round_trip(aiohttp_server: Any, tmp_path: 
     server = await aiohttp_server(app)
     url = str(server.make_url("")).rstrip("/")
 
-    cfg = _member_config(url, tmp_path)
+    cfg = _member_config(url, tmp_path, scrape_target="10.0.0.5:9191")
     client = FleetClient(cfg, heartbeat_interval=0.01)
     await client.start(lambda: {"metrics": {}})
-    # Registered immediately on start.
+    # Registered immediately on start, advertising its scrape target.
     entries = registry.entries()
     assert len(entries) == 1
     assert entries[0].fleet == "asia"
+    assert entries[0].scrape_target == "10.0.0.5:9191"
     # A heartbeat lands a snapshot within a couple of ticks.
     for _ in range(50):
         await asyncio.sleep(0.01)

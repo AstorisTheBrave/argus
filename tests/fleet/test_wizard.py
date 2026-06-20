@@ -10,6 +10,7 @@ from argus.fleet.wizard import (
     build_env,
     generate_token,
     member_snippet,
+    prometheus_scrape_config,
     write_artifacts,
 )
 
@@ -52,3 +53,10 @@ def test_write_artifacts(tmp_path: Path) -> None:
     paths = write_artifacts(InitChoices(token="sek"), tmp_path)
     assert paths["env"].read_text(encoding="utf-8").startswith("# Generated")
     assert "services:" in paths["compose"].read_text(encoding="utf-8")
+
+
+def test_prometheus_scrape_config() -> None:
+    cfg = prometheus_scrape_config(InitChoices(token="sek", public_url="http://f:9190"))
+    assert "http_sd_configs:" in cfg
+    assert "http://f:9190/api/fleet/targets" in cfg
+    assert "credentials: sek" in cfg

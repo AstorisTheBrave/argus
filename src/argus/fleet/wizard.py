@@ -101,6 +101,23 @@ def systemd_hint(env_path: Path) -> str:
     return f"EnvironmentFile={env_path.resolve()}"
 
 
+def prometheus_scrape_config(choices: InitChoices) -> str:
+    """A Prometheus http_sd scrape_config that auto-discovers members via the fleet.
+
+    Members must advertise a scrape target (ARGUS_FLEET_SCRAPE_TARGET) for this to
+    populate. Point one Prometheus at the fleet and it discovers every bot.
+    """
+    base = choices.public_url.rstrip("/")
+    return (
+        "scrape_configs:\n"
+        "  - job_name: argus-fleet\n"
+        "    http_sd_configs:\n"
+        f"      - url: {base}/api/fleet/targets\n"
+        "        authorization:\n"
+        f"          credentials: {choices.token}\n"
+    )
+
+
 def write_artifacts(choices: InitChoices, out_dir: Path) -> dict[str, Path]:
     """Write .env and docker-compose.fleet.yml into ``out_dir``; return their paths."""
     out_dir.mkdir(parents=True, exist_ok=True)

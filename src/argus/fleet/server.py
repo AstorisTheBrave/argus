@@ -221,7 +221,8 @@ def build_fleet_app(
             raise web.HTTPForbidden(text="fleet cluster cap reached\n")
         fleet = str(body.get("fleet") or "default")
         version = str(body.get("version") or "")
-        number = registry.register(identity, fleet, version)
+        scrape_target = str(body.get("scrape_target") or "")
+        number = registry.register(identity, fleet, version, scrape_target=scrape_target)
         metrics.registrations.inc()
         return web.json_response({"number": number})
 
@@ -277,6 +278,23 @@ def build_fleet_app(
             raise web.HTTPNotFound(text="cluster not found\n")
         return web.json_response({"cluster": cluster, "history": []})
 
+    async def targets(_request: web.Request) -> web.StreamResponse:
+        # Prometheus http_sd: one entry per cluster that advertised an address,
+        # labelled so the cluster->fleet grouping is available in Prometheus.
+        out = [
+            {
+                "targets": [entry.scrape_target],
+                "labels": {
+                    "cluster": entry.identity,
+                    "fleet": entry.fleet,
+                    "__metrics_path__": "/metrics",
+                },
+            }
+            for entry in registry.entries()
+            if entry.scrape_target
+        ]
+        return web.json_response(out)
+
     async def index(_request: web.Request) -> web.StreamResponse:
         index_html = STATIC_DIR / "index.html"
         if not index_html.is_file():
@@ -317,6 +335,7 @@ def build_fleet_app(
     app.router.add_post("/fleet/heartbeat", heartbeat)
     app.router.add_get("/api/fleet/view", fleet_view)
     app.router.add_get("/api/fleet/cluster", cluster_view)
+    app.router.add_get("/api/fleet/targets", targets)
     assets_dir = STATIC_DIR / "assets"
     if assets_dir.is_dir():
         app.router.add_static("/assets/", assets_dir)
