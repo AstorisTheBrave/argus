@@ -17,16 +17,18 @@
 """The fleet control-plane HTTP surface (aiohttp).
 
 ``build_fleet_app`` is a pure factory (no socket bind) so tests can hand it to
-the ``aiohttp_client`` fixture. The shared ``token`` gates every route except
-``/healthz`` via the dashboard's auth middleware. Members call ``/fleet/register``
-and ``/fleet/heartbeat``; the SPA polls ``/api/fleet/view``. A background sweeper
-recomputes health each ``heartbeat_interval`` and is cancelled on cleanup.
+the ``aiohttp_client`` fixture. Auth is path-aware: ingest paths
+(``/fleet/register``, ``/fleet/heartbeat``) require the ingest token and the rest
+require the viewer token (both fall back to the shared ``token``); ``/healthz``
+and ``/readyz`` are always open. The SPA polls ``/api/fleet/view``. A background
+sweeper recomputes health each ``heartbeat_interval`` and is cancelled on cleanup.
 """
 
 from __future__ import annotations
 
 import asyncio
 import contextlib
+import hmac
 from collections.abc import Awaitable, Callable
 from typing import TYPE_CHECKING, Any
 
@@ -35,7 +37,6 @@ from aiohttp.typedefs import Middleware
 from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 
 from argus import __version__
-from argus.dashboard.auth import make_auth_middleware
 from argus.dashboard.server import STATIC_DIR
 from argus.fleet.metrics import FleetMetrics
 
@@ -47,6 +48,41 @@ if TYPE_CHECKING:
 _Handler = Callable[[web.Request], Awaitable[web.StreamResponse]]
 
 _SWEEPER_KEY: web.AppKey[asyncio.Task[None]] = web.AppKey("argus_fleet_sweeper", asyncio.Task)
+
+_OPEN_PATHS = frozenset({"/healthz", "/readyz"})
+_INGEST_PATHS = frozenset({"/fleet/register", "/fleet/heartbeat"})
+_BEARER_PREFIX = "Bearer "
+
+
+def _extract_token(request: web.Request) -> str | None:
+    header = request.headers.get("Authorization", "")
+    if header.startswith(_BEARER_PREFIX):
+        return header[len(_BEARER_PREFIX) :]
+    return request.query.get("token")
+
+
+def _make_fleet_auth_middleware(ingest_token: str | None, viewer_token: str | None) -> Middleware:
+    """Path-aware auth: ingest paths need the ingest token, the rest the viewer.
+
+    A surface whose token is ``None`` is open (used for loopback/insecure dev).
+    The comparison is constant-time. Health paths are never gated.
+    """
+
+    @web.middleware
+    async def middleware(request: web.Request, handler: _Handler) -> web.StreamResponse:
+        path = request.path
+        if path in _OPEN_PATHS:
+            return await handler(request)
+        required = ingest_token if path in _INGEST_PATHS else viewer_token
+        if required is None:
+            return await handler(request)
+        provided = _extract_token(request)
+        if provided is not None and hmac.compare_digest(provided, required):
+            return await handler(request)
+        raise web.HTTPUnauthorized(text="unauthorized\n")
+
+    return middleware
+
 
 # Generic banner: do not leak the Python/aiohttp versions to scanners. The
 # reverse proxy is the reliable layer (this signal does not fire on raw parser
@@ -105,11 +141,15 @@ def ensure_secure_bind(config: FleetConfig) -> None:
     warn; set ``ARGUS_FLEET_TOKEN`` (or ``ARGUS_FLEET_TOKEN_FILE``), bind to
     loopback, or pass ``ARGUS_FLEET_INSECURE=1`` for local testing only.
     """
-    if config.token is None and not config.is_loopback() and not config.insecure:
+    if config.is_loopback() or config.insecure:
+        return
+    # Both surfaces must be authenticated on a public bind: an unprotected ingest
+    # or viewer surface is an open door.
+    if config.effective_ingest_token() is None or config.effective_viewer_token() is None:
         raise RuntimeError(
             f"refusing to bind {config.host!r} without a token: set ARGUS_FLEET_TOKEN "
-            "(or ARGUS_FLEET_TOKEN_FILE), bind to 127.0.0.1, or set ARGUS_FLEET_INSECURE=1 "
-            "for local testing only"
+            "(or ARGUS_FLEET_INGEST_TOKEN + ARGUS_FLEET_VIEWER_TOKEN, or *_FILE), bind to "
+            "127.0.0.1, or set ARGUS_FLEET_INSECURE=1 for local testing only"
         )
 
 
@@ -134,7 +174,11 @@ def build_fleet_app(
     middlewares: list[Middleware] = []
     if config.cors_origins:
         middlewares.append(_make_cors_middleware(config.cors_origins))
-    middlewares.append(make_auth_middleware(config.token, frozenset({"/healthz", "/readyz"})))
+    middlewares.append(
+        _make_fleet_auth_middleware(
+            config.effective_ingest_token(), config.effective_viewer_token()
+        )
+    )
     app = web.Application(middlewares=middlewares, client_max_size=config.max_body_bytes)
     app.on_response_prepare.append(_harden_response)
     metrics = FleetMetrics(registry)
@@ -157,7 +201,7 @@ def build_fleet_app(
                 "fleet": True,
                 "namespace": config.namespace,
                 "version": __version__,
-                "auth_required": config.token is not None,
+                "auth_required": config.effective_viewer_token() is not None,
                 "interval": config.heartbeat_interval,
             }
         )
