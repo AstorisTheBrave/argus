@@ -1,5 +1,10 @@
 # argus-dpy
 
+[![CI](https://github.com/AstorisTheBrave/argus/actions/workflows/ci.yml/badge.svg)](https://github.com/AstorisTheBrave/argus/actions/workflows/ci.yml)
+[![PyPI](https://img.shields.io/pypi/v/argus-dpy)](https://pypi.org/project/argus-dpy/)
+[![Python](https://img.shields.io/pypi/pyversions/argus-dpy)](https://pypi.org/project/argus-dpy/)
+[![License: AGPL-3.0-or-later](https://img.shields.io/badge/license-AGPL--3.0--or--later-blue)](LICENSE)
+
 **Operational Prometheus / OpenTelemetry metrics for [discord.py](https://github.com/Rapptz/discord.py) bots, in one line.**
 
 ```python
@@ -7,20 +12,15 @@ from discord.ext import commands
 from argus import Argus
 
 bot = commands.AutoShardedBot(command_prefix="!", intents=...)
-Argus(bot)          # that's the whole integration
+Argus(bot)          # the whole integration
 ```
 
-`Argus(bot)` instruments shard latency, interaction and command throughput and
-outcomes, command duration, gateway throughput, and rate-limit pressure, then
-serves a Prometheus `/metrics` endpoint **on the bot's own event loop** — no
-extra process, no thread, no glue code. It ships Grafana dashboards and a
-one-command compose stack, stays backend-agnostic at the core, and **never puts
-a guild, user, or channel id on a metric label**.
-
-> Status: alpha. The metric surface is stable; OTLP push and the per-guild
-> analytical sink are planned for 1.1.
-
----
+`Argus(bot)` instruments shard latency, interaction/command throughput and
+outcomes, precise command duration, gateway throughput, rate-limit pressure and
+cache sizes, then serves a Prometheus `/metrics` endpoint **and a live web
+dashboard** on the bot's own event loop. It can also push to OpenTelemetry and
+drain per-guild events to ClickHouse. It never puts a guild, user, or channel id
+on a Prometheus label.
 
 ## Install
 
@@ -28,144 +28,86 @@ a guild, user, or channel id on a metric label**.
 pip install argus-dpy
 ```
 
-Requires Python 3.10+ and `discord.py >= 2.4`.
+Python 3.10+, `discord.py >= 2.4`. Optional extras: `argus-dpy[otlp]`,
+`argus-dpy[clickhouse]`. A reference container is published at
+`ghcr.io/astoristhebrave/argus`.
 
-## Use it
+## Behaviour
 
-```python
-Argus(bot)
-```
-
-Metrics are served at `http://0.0.0.0:9191/metrics` once the bot starts. That is
-the entire required integration. You can also load it as a cog if you prefer:
-
-```python
-from argus import ArgusCog
-await bot.add_cog(ArgusCog(bot))
-```
-
-## Built-in dashboard
-
-`Argus(bot)` also serves a live web dashboard at `/` on the same port (a React
-SPA bundled into the wheel, so no extra setup). Open `http://localhost:9191/`.
-It reads metrics live (Server-Sent Events, with polling fallback) and has
-sections for an overview, interactions, the gateway, your Grafana dashboards,
-and per-guild analytics.
-
-```python
-Argus(
-    bot,
-    dashboard=True,                 # default; set False to disable
-    dashboard_auth_token="secret",  # optional; gates the dashboard + APIs
-    grafana_url="http://localhost:3000",  # optional; embeds your Grafana boards
-)
-```
-
-> **Security:** with no token, the dashboard exposes the same operational data
-> as `/metrics` does, to anyone who can reach the port. Set `dashboard_auth_token`
-> (and put the bot behind a proxy or bind to localhost) for anything public. The
-> per-guild analytics section is served only when `enable_per_guild` plus a
-> `clickhouse_dsn` are set, and it fails closed without a token.
-
-## Dashboards in one command
-
-```bash
-docker compose up -d        # Prometheus on :9090, Grafana on :3000 (admin/admin)
-```
-
-Compose auto-provisions the Prometheus datasource and three dashboards
-(**Overview**, **Interactions**, **Gateway**). Prometheus scrapes the bot at
-`host.docker.internal:9191` out of the box — edit `prometheus/prometheus.yml` if
-your bot listens elsewhere. The bot itself stays out of compose; it is your
-application.
+`Argus(bot)` registers listeners synchronously, then starts an aiohttp server on
+the bot's loop once it is running. By default it serves the **dashboard at `/`**
+and **metrics at `/metrics`** on port `9191`. Disable the dashboard with
+`Argus(bot, dashboard=False)`; everything else is opt-in. Instrumentation is
+fail-open: it is counted and swallowed, never raised into your bot.
+See [Architecture & invariants](https://github.com/AstorisTheBrave/argus/wiki/Architecture-and-Invariants).
 
 ## Configuration
 
 Constructor kwargs override `ARGUS_*` environment variables override defaults.
 
-| Kwarg | Env | Default | Meaning |
+| kwarg | env | default | meaning |
 |---|---|---|---|
-| `port` | `ARGUS_PORT` | `9191` | `/metrics` port |
+| `port` | `ARGUS_PORT` | `9191` | server port |
 | `host` | `ARGUS_HOST` | `0.0.0.0` | bind host |
-| `metrics_path` | `ARGUS_METRICS_PATH` | `/metrics` | endpoint path |
+| `metrics_path` | `ARGUS_METRICS_PATH` | `/metrics` | metrics endpoint |
 | `cluster_id` | `ARGUS_CLUSTER_ID` | `default` | low-cardinality label for clustered deploys |
 | `namespace` | `ARGUS_NAMESPACE` | `discord` | metric name prefix |
-| `enable_per_guild` | `ARGUS_ENABLE_PER_GUILD` | `false` | analytical sink only; never adds a Prometheus label |
-| `otlp_endpoint` | `ARGUS_OTLP_ENDPOINT` | — | reserved for the 1.1 OTLP push path |
+| `dashboard` | `ARGUS_DASHBOARD` | `true` | serve the dashboard at `/` |
+| `dashboard_path` | `ARGUS_DASHBOARD_PATH` | `/` | dashboard mount path |
+| `dashboard_interval` | `ARGUS_DASHBOARD_INTERVAL` | `5` | live-stream seconds |
+| `dashboard_auth_token` | `ARGUS_DASHBOARD_AUTH_TOKEN` | — | bearer token gating the dashboard + APIs |
+| `grafana_url` | `ARGUS_GRAFANA_URL` | — | link/embed your Grafana boards |
+| `enable_per_guild` | `ARGUS_ENABLE_PER_GUILD` | `false` | enable the per-guild analytical path |
+| `clickhouse_dsn` | `ARGUS_CLICKHOUSE_DSN` | — | ClickHouse sink/target for analytics |
+| `otlp_endpoint` | `ARGUS_OTLP_ENDPOINT` | — | also push metrics via OTLP |
+
+Full reference: [Configuration](https://github.com/AstorisTheBrave/argus/wiki/Configuration).
 
 ## Metrics
 
-Names use the `namespace` prefix (default `discord`); `argus_*` internals are
-never prefixed.
+Aggregate, bounded-cardinality metrics: per-shard latency and up state,
+per-cluster guild/user/voice/emoji/sticker/channel counts, uptime, registered
+commands, interaction and command rates with success/error split, precise
+command-duration histogram, gateway throughput, shard dis/reconnects, log and
+rate-limit counters. Every counter and the histogram carry a `cluster` label.
 
-### State gauges (read live at scrape time)
+Full list with labels: [Metrics Reference](https://github.com/AstorisTheBrave/argus/wiki/Metrics-Reference).
 
-| Metric | Labels |
-|---|---|
-| `discord_shard_latency_seconds` | `shard` |
-| `discord_shards_connected` | `cluster` |
-| `discord_shards_configured` | `cluster` |
-| `discord_guilds` | `cluster` |
-| `discord_cached_users` | `cluster` |
-| `discord_bot_info` | `discord_py_version`, `argus_version` |
-| `argus_up` | — |
+## Dashboard
 
-### Counters
+A React SPA bundled into the wheel, served at `/`: overview, interactions,
+gateway, your Grafana boards, and per-guild analytics. Reads metrics live over
+SSE with a polling fallback. Set `dashboard_auth_token` for anything public.
+See [Dashboard](https://github.com/AstorisTheBrave/argus/wiki/Dashboard).
 
-| Metric | Labels |
-|---|---|
-| `discord_interactions_total` | `type`, `status` |
-| `discord_app_commands_total` | `command`, `status` |
-| `discord_commands_total` | `command`, `status` |
-| `discord_command_errors_total` | `command`, `error_type` |
-| `discord_gateway_events_total` | `event` |
-| `discord_shard_disconnects_total` | `shard` |
-| `discord_shard_reconnects_total` | `shard` |
-| `discord_log_records_total` | `logger`, `level` |
-| `discord_ratelimits_total` | — |
-| `argus_instrumentation_errors_total` | `hook` |
+## Per-guild analytics
 
-### Histograms
+Per-guild, per-user questions never go to Prometheus (cardinality). With
+`enable_per_guild` + `clickhouse_dsn`, Argus drains per-guild events to
+ClickHouse (batched, non-blocking) and the dashboard's Analytics section serves
+per-guild command counts and average durations.
+See [History & ClickHouse](https://github.com/AstorisTheBrave/argus/wiki/History-and-ClickHouse).
 
-| Metric | Labels |
-|---|---|
-| `discord_app_command_duration_seconds` | `command` |
+## Grafana, OTLP, clustering
 
-> `discord_cached_users` reflects the cache and is only meaningful with the
-> members intent enabled. Command duration is approximated from the
-> interaction timestamp to completion in this version.
+`docker compose up -d` brings up a provisioned Prometheus + Grafana with three
+dashboards. Set `otlp_endpoint` to also push via OpenTelemetry. Run one Argus
+per process with a distinct `cluster_id` for clustered bots.
+See [Clustering](https://github.com/AstorisTheBrave/argus/wiki/Clustering) and
+[OTLP](https://github.com/AstorisTheBrave/argus/wiki/OTLP).
 
-## Why no per-guild metrics?
+## Why no per-guild Prometheus labels?
 
-Cardinality. Every unique label-value combination is its own time series. Shard,
-cluster, command, event and status are bounded sets — fine. A `guild_id` on a
-bot in tens of thousands of guilds is tens of thousands of series **per metric**,
-which is what makes Prometheus fall over at scale, and per-entity series are not
-even useful to visualise. So Argus forbids `guild_id`, `user_id` and
-`channel_id` as labels by construction. Per-guild, per-user questions belong in
-an analytical store (a planned, strictly separate path), never in the
-operational metrics.
+`guild_id`/`user_id`/`channel_id` are unbounded; as labels they explode
+Prometheus at scale and are useless to visualise. Argus forbids them by
+construction and routes per-entity questions to the analytical path instead.
 
-## Clustered bots
+## Contributing & license
 
-Run one Argus per process, each with a distinct `cluster_id` and port:
+Contributions are accepted under the DCO; see [CONTRIBUTING.md](CONTRIBUTING.md).
+Licensed under **AGPL-3.0-or-later** (network use counts as distribution) — see
+[LICENSE](LICENSE).
 
-```python
-Argus(bot, cluster_id="0", port=9191)   # process 0
-Argus(bot, cluster_id="1", port=9192)   # process 1
-```
+---
 
-List every port in `prometheus/prometheus.yml`. State gauges carry the distinct
-`cluster` label; counter rates aggregate across the fleet at query time. See
-`examples/clustered_bot.py`.
-
-## Licensing
-
-Argus is licensed under **AGPL-3.0-or-later** — see [LICENSE](LICENSE).
-
-Because the AGPL treats network use as distribution, anyone who runs a modified
-version of Argus as a network service must make their modified source available
-to that service's users.
-
-Contributions are accepted under the Developer Certificate of Origin; see
-[CONTRIBUTING.md](CONTRIBUTING.md).
+**See the [full wiki](https://github.com/AstorisTheBrave/argus/wiki) for the in-depth guides and explanations.**

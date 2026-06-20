@@ -95,30 +95,35 @@ def register_dashboard(
             pass
         return response
 
-    def _guard_analytics() -> str:
+    def _guild_id(request: web.Request) -> str:
         # Fail closed: the per-guild path is sensitive and must not be served
         # without a token (the auth middleware only gates when one is set).
         if config.dashboard_auth_token is None:
             raise web.HTTPForbidden(text="analytics requires dashboard_auth_token\n")
-        return ""
-
-    async def analytics_volume(request: web.Request) -> web.StreamResponse:
-        assert analytics is not None
-        _guard_analytics()
         guild_id = request.query.get("guild_id", "")
         if not guild_id:
             raise web.HTTPBadRequest(text="guild_id required\n")
-        rows = await analytics.interaction_volume(guild_id)
+        return guild_id
+
+    async def analytics_volume(request: web.Request) -> web.StreamResponse:
+        assert analytics is not None
+        rows = await analytics.interaction_volume(_guild_id(request))
         return web.json_response({"rows": [list(row) for row in rows]}, dumps=_dumps)
 
     async def analytics_top_commands(request: web.Request) -> web.StreamResponse:
         assert analytics is not None
-        _guard_analytics()
-        guild_id = request.query.get("guild_id", "")
-        if not guild_id:
-            raise web.HTTPBadRequest(text="guild_id required\n")
-        rows = await analytics.top_commands(guild_id)
+        rows = await analytics.top_commands(_guild_id(request))
         return web.json_response({"rows": [list(row) for row in rows]}, dumps=_dumps)
+
+    async def analytics_command_stats(request: web.Request) -> web.StreamResponse:
+        assert analytics is not None
+        rows = await analytics.command_stats(_guild_id(request))
+        return web.json_response({"rows": [list(row) for row in rows]}, dumps=_dumps)
+
+    async def analytics_avg_duration(request: web.Request) -> web.StreamResponse:
+        assert analytics is not None
+        avg_ms = await analytics.avg_duration(_guild_id(request))
+        return web.json_response({"avg_ms": avg_ms}, dumps=_dumps)
 
     def registrar(app: web.Application) -> None:
         mount = config.dashboard_path.rstrip("/")
@@ -127,6 +132,8 @@ def register_dashboard(
         if analytics is not None:
             app.router.add_get("/api/analytics/interaction-volume", analytics_volume)
             app.router.add_get("/api/analytics/top-commands", analytics_top_commands)
+            app.router.add_get("/api/analytics/command-stats", analytics_command_stats)
+            app.router.add_get("/api/analytics/avg-duration", analytics_avg_duration)
         assets_dir = STATIC_DIR / "assets"
         if assets_dir.is_dir():
             app.router.add_static(f"{mount}/assets/", assets_dir)

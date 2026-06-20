@@ -46,7 +46,13 @@ async def test_per_guild_on_emits_event_with_guild_id() -> None:
     assert sink.events[0]["event"] == "interaction"
     # Invariant 7: the Prometheus counter carries no guild_id label.
     assert (
-        backend.count(names.interactions_total, type="application_command", status="received") == 1
+        backend.count(
+            names.interactions_total,
+            type="application_command",
+            status="received",
+            cluster="default",
+        )
+        == 1
     )
     for key in backend.counts:
         assert "guild_id" not in dict(key[1])

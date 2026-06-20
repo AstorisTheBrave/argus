@@ -54,6 +54,10 @@ class ArgusCog(commands.Cog):
         self.names = define_metrics(self.registry, bot, self.config)
         self.adapter = PrometheusAdapter()
         self.registry.attach(self.adapter)
+        if self.config.otlp_endpoint:
+            from argus.adapters.otlp import OTLPAdapter
+
+            self.registry.attach(OTLPAdapter(endpoint=self.config.otlp_endpoint))
         self.sink: EventSink = self._build_sink()
         self.instrumentation = Instrumentation(
             self.registry, self.names, self.config, sink=self.sink

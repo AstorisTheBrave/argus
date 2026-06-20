@@ -19,12 +19,17 @@
 Every hook body is O(1) and synchronous (no I/O, no await on the hot path,
 invariant 3) and runs inside :meth:`Instrumentation._safe`, which counts and
 swallows any error so instrumentation can never raise into the bot loop
-(invariant 5). Listener coroutines are thin async shims over the sync bodies.
+(invariant 5). Every counter carries the process ``cluster`` label. Command
+duration is timed precisely from interaction receipt to completion via a bounded
+start-time map (falling back to the interaction timestamp), so the map can never
+grow without bound.
 """
 
 from __future__ import annotations
 
 import logging
+import time
+from collections import OrderedDict
 from collections.abc import Callable
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any
@@ -38,6 +43,7 @@ if TYPE_CHECKING:
 log = logging.getLogger("argus")
 
 _UNKNOWN = "unknown"
+_MAX_PENDING = 10_000  # cap on in-flight interaction timers (bounded memory)
 
 
 def _qualified_name(obj: Any) -> str:
@@ -59,11 +65,17 @@ class Instrumentation:
         self._config = config
         self._sink = sink
         self._per_guild = config.enable_per_guild
+        self._cluster = config.cluster_id or "default"
+        self._starts: OrderedDict[int, float] = OrderedDict()
+
+    def _labels(self, **labels: str) -> dict[str, str]:
+        labels["cluster"] = self._cluster
+        return labels
 
     # --- fail-open wrapper (invariant 5) ---
     def _count_error(self, hook: str) -> None:
         try:
-            self._registry.inc(self._n.instrumentation_errors_total, {"hook": hook})
+            self._registry.inc(self._n.instrumentation_errors_total, self._labels(hook=hook))
         except Exception:  # pragma: no cover - the counter itself failed
             pass
 
@@ -74,39 +86,25 @@ class Instrumentation:
             self._count_error(hook)
             log.exception("argus hook %r failed", hook)
 
-    # --- analytical path (invariant 7): per-guild events to the sink, never a label ---
-    async def _emit_interaction(self, interaction: Any) -> None:
-        if self._sink is None or not self._per_guild:
+    # --- precise duration timing (bounded) ---
+    def _start_timer(self, interaction: Any) -> None:
+        iid = getattr(interaction, "id", None)
+        if iid is None:
             return
-        try:
-            itype = getattr(getattr(interaction, "type", None), "name", _UNKNOWN)
-            await self._sink.record(
-                {
-                    "ts": datetime.now(timezone.utc).isoformat(),
-                    "event": "interaction",
-                    "guild_id": str(getattr(interaction, "guild_id", "") or ""),
-                    "type": itype,
-                }
-            )
-        except Exception:
-            self._count_error("sink_interaction")
-            log.exception("argus sink interaction failed")
+        self._starts[iid] = time.monotonic()
+        if len(self._starts) > _MAX_PENDING:
+            self._starts.popitem(last=False)  # evict the oldest in-flight timer
 
-    async def _emit_app_command(self, interaction: Any, command: Any) -> None:
-        if self._sink is None or not self._per_guild:
-            return
-        try:
-            await self._sink.record(
-                {
-                    "ts": datetime.now(timezone.utc).isoformat(),
-                    "event": "app_command",
-                    "guild_id": str(getattr(interaction, "guild_id", "") or ""),
-                    "command": _qualified_name(command),
-                }
-            )
-        except Exception:
-            self._count_error("sink_app_command")
-            log.exception("argus sink app_command failed")
+    def _take_duration(self, interaction: Any) -> float | None:
+        iid = getattr(interaction, "id", None)
+        start = self._starts.pop(iid, None) if iid is not None else None
+        if start is not None:
+            return max(0.0, time.monotonic() - start)
+        created = getattr(interaction, "created_at", None)  # fallback approximation
+        if created is not None:
+            seconds = (datetime.now(timezone.utc) - created).total_seconds()
+            return seconds if seconds >= 0 else None
+        return None
 
     # --- listener coroutines (what discord.py dispatches to) ---
     async def on_interaction(self, interaction: Any) -> None:
@@ -114,8 +112,19 @@ class Instrumentation:
         await self._emit_interaction(interaction)
 
     async def on_app_command_completion(self, interaction: Any, command: Any) -> None:
-        self._safe("on_app_command_completion", self._app_command_completion, interaction, command)
-        await self._emit_app_command(interaction, command)
+        duration: float | None = None
+        try:
+            duration = self._take_duration(interaction)
+        except Exception:  # pragma: no cover - defensive
+            duration = None
+        self._safe(
+            "on_app_command_completion",
+            self._app_command_completion,
+            interaction,
+            command,
+            duration,
+        )
+        await self._emit_app_command(interaction, command, duration)
 
     async def on_command_completion(self, ctx: Any) -> None:
         self._safe("on_command_completion", self._command_completion, ctx)
@@ -135,8 +144,7 @@ class Instrumentation:
     async def on_shard_disconnect(self, shard_id: int) -> None:
         self._safe("on_shard_disconnect", self._shard_disconnect, shard_id)
 
-    # App command errors dispatch to CommandTree.on_error, not a listener; this
-    # is called from the chained tree handler in hooks.register.
+    # App command errors dispatch to CommandTree.on_error, not a listener.
     def app_command_error(self, interaction: Any, error: BaseException) -> None:
         self._safe("tree_on_error", self._app_command_error, interaction, error)
 
@@ -144,62 +152,99 @@ class Instrumentation:
     def record_log(self, record: logging.LogRecord) -> None:
         self._safe("log_handler", self._record_log, record)
 
+    # --- analytical path (invariant 7): per-guild events, never a Prometheus label ---
+    async def _emit_interaction(self, interaction: Any) -> None:
+        if self._sink is None or not self._per_guild:
+            return
+        try:
+            itype = getattr(getattr(interaction, "type", None), "name", _UNKNOWN)
+            await self._sink.record(
+                {
+                    "ts": datetime.now(timezone.utc).isoformat(),
+                    "event": "interaction",
+                    "guild_id": str(getattr(interaction, "guild_id", "") or ""),
+                    "type": itype,
+                    "command": "",
+                    "duration_ms": 0.0,
+                }
+            )
+        except Exception:
+            self._count_error("sink_interaction")
+            log.exception("argus sink interaction failed")
+
+    async def _emit_app_command(
+        self, interaction: Any, command: Any, duration: float | None
+    ) -> None:
+        if self._sink is None or not self._per_guild:
+            return
+        try:
+            await self._sink.record(
+                {
+                    "ts": datetime.now(timezone.utc).isoformat(),
+                    "event": "app_command",
+                    "guild_id": str(getattr(interaction, "guild_id", "") or ""),
+                    "type": "",
+                    "command": _qualified_name(command),
+                    "duration_ms": round((duration or 0.0) * 1000.0, 3),
+                }
+            )
+        except Exception:
+            self._count_error("sink_app_command")
+            log.exception("argus sink app_command failed")
+
     # --- sync hook bodies ---
     def _interaction(self, interaction: Any) -> None:
+        self._start_timer(interaction)
         itype = getattr(getattr(interaction, "type", None), "name", _UNKNOWN)
-        self._registry.inc(self._n.interactions_total, {"type": itype, "status": "received"})
+        self._registry.inc(self._n.interactions_total, self._labels(type=itype, status="received"))
 
-    def _app_command_completion(self, interaction: Any, command: Any) -> None:
+    def _app_command_completion(
+        self, interaction: Any, command: Any, duration: float | None
+    ) -> None:
         name = _qualified_name(command)
-        self._registry.inc(self._n.app_commands_total, {"command": name, "status": "success"})
-        self._observe_duration(interaction, name)
+        self._registry.inc(self._n.app_commands_total, self._labels(command=name, status="success"))
+        if duration is not None:
+            self._registry.observe(
+                self._n.app_command_duration_seconds, duration, self._labels(command=name)
+            )
 
     def _app_command_error(self, interaction: Any, error: BaseException) -> None:
         name = _qualified_name(getattr(interaction, "command", None))
-        self._registry.inc(self._n.app_commands_total, {"command": name, "status": "error"})
+        self._take_duration(interaction)  # drop any pending timer for this interaction
+        self._registry.inc(self._n.app_commands_total, self._labels(command=name, status="error"))
         self._registry.inc(
             self._n.command_errors_total,
-            {"command": name, "error_type": type(error).__name__},
+            self._labels(command=name, error_type=type(error).__name__),
         )
 
     def _command_completion(self, ctx: Any) -> None:
         name = _qualified_name(getattr(ctx, "command", None))
-        self._registry.inc(self._n.commands_total, {"command": name, "status": "success"})
+        self._registry.inc(self._n.commands_total, self._labels(command=name, status="success"))
 
     def _command_error(self, ctx: Any, error: BaseException) -> None:
         name = _qualified_name(getattr(ctx, "command", None))
-        self._registry.inc(self._n.commands_total, {"command": name, "status": "error"})
+        self._registry.inc(self._n.commands_total, self._labels(command=name, status="error"))
         self._registry.inc(
             self._n.command_errors_total,
-            {"command": name, "error_type": type(error).__name__},
+            self._labels(command=name, error_type=type(error).__name__),
         )
 
     def _socket_event_type(self, event_type: str) -> None:
-        self._registry.inc(self._n.gateway_events_total, {"event": str(event_type)})
+        self._registry.inc(self._n.gateway_events_total, self._labels(event=str(event_type)))
 
     def _shard_reconnect(self, shard_id: int) -> None:
-        self._registry.inc(self._n.shard_reconnects_total, {"shard": str(shard_id)})
+        self._registry.inc(self._n.shard_reconnects_total, self._labels(shard=str(shard_id)))
 
     def _shard_disconnect(self, shard_id: int) -> None:
-        self._registry.inc(self._n.shard_disconnects_total, {"shard": str(shard_id)})
-
-    def _observe_duration(self, interaction: Any, command: str) -> None:
-        created = getattr(interaction, "created_at", None)
-        if created is None:
-            return
-        seconds = (datetime.now(timezone.utc) - created).total_seconds()
-        if seconds >= 0:
-            self._registry.observe(
-                self._n.app_command_duration_seconds, seconds, {"command": command}
-            )
+        self._registry.inc(self._n.shard_disconnects_total, self._labels(shard=str(shard_id)))
 
     def _record_log(self, record: logging.LogRecord) -> None:
         self._registry.inc(
-            self._n.log_records_total, {"logger": record.name, "level": record.levelname}
+            self._n.log_records_total, self._labels(logger=record.name, level=record.levelname)
         )
         if record.name == "discord.http" and record.levelno >= logging.WARNING:
             if "rate limit" in record.getMessage().lower():
-                self._registry.inc(self._n.ratelimits_total)
+                self._registry.inc(self._n.ratelimits_total, self._labels())
 
 
 class DiscordLogHandler(logging.Handler):

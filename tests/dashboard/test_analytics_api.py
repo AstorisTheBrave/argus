@@ -31,10 +31,33 @@ def _app(config: ArgusConfig, analytics: AnalyticsQuery | None) -> Any:
     return build_app(registry, config.metrics_path, dashboard=registrar, middlewares=middlewares)
 
 
+def _authed() -> ArgusConfig:
+    return ArgusConfig.resolve(enable_per_guild=True, dashboard_auth_token="secret", environ={})
+
+
+_HDR = {"Authorization": "Bearer secret"}
+
+
 async def test_analytics_404_when_disabled(aiohttp_client: Any) -> None:
     client = await aiohttp_client(_app(ArgusConfig.resolve(environ={}), None))
     resp = await client.get("/api/analytics/interaction-volume?guild_id=1")
     assert resp.status == 404
+
+
+async def test_command_stats_served(aiohttp_client: Any) -> None:
+    analytics = AnalyticsQuery(FakeClient(rows=[("ping", 10, 12.5)]))
+    client = await aiohttp_client(_app(_authed(), analytics))
+    resp = await client.get("/api/analytics/command-stats?guild_id=1", headers=_HDR)
+    assert resp.status == 200
+    assert (await resp.json())["rows"] == [["ping", 10, 12.5]]
+
+
+async def test_avg_duration_served(aiohttp_client: Any) -> None:
+    analytics = AnalyticsQuery(FakeClient(rows=[(42.0,)]))
+    client = await aiohttp_client(_app(_authed(), analytics))
+    resp = await client.get("/api/analytics/avg-duration?guild_id=1", headers=_HDR)
+    assert resp.status == 200
+    assert (await resp.json())["avg_ms"] == 42.0
 
 
 async def test_analytics_fail_closed_without_token(aiohttp_client: Any) -> None:

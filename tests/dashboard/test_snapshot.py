@@ -19,8 +19,13 @@ def _snapshot() -> dict[str, Any]:
     adapter = PrometheusAdapter()
     registry.attach(adapter)
     registry.set_info(names.bot_info, {"discord_py_version": "2.7.1", "argus_version": "0.1.0"})
-    registry.inc(names.interactions_total, {"type": "application_command", "status": "received"})
-    registry.observe(names.app_command_duration_seconds, 0.2, {"command": "ping"})
+    registry.inc(
+        names.interactions_total,
+        {"type": "application_command", "status": "received", "cluster": "default"},
+    )
+    registry.observe(
+        names.app_command_duration_seconds, 0.2, {"command": "ping", "cluster": "default"}
+    )
     return build_snapshot(adapter.registry)
 
 

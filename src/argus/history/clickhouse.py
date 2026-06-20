@@ -28,9 +28,25 @@ from typing import Any
 
 from argus.history.sink import BatchingSink, Event
 
-COLUMNS = ["ts", "event", "guild_id", "type", "command"]
+COLUMNS = ["ts", "event", "guild_id", "type", "command", "duration_ms"]
+_NUMERIC = frozenset({"duration_ms"})
 
 ClientFactory = Callable[[], Awaitable[Any]]
+
+
+def _create_table_sql(table: str) -> str:
+    # ts is stored as the ISO-8601 string the hooks emit; queries parse it with
+    # parseDateTimeBestEffort. This keeps inserts trivial and timezone-safe.
+    return (
+        f"CREATE TABLE IF NOT EXISTS {table} ("
+        "ts String, "
+        "event LowCardinality(String), "
+        "guild_id String, "
+        "type LowCardinality(String), "
+        "command String, "
+        "duration_ms Float64"
+        ") ENGINE = MergeTree() ORDER BY (guild_id, ts)"
+    )
 
 
 class ClickHouseSink(BatchingSink):
@@ -49,6 +65,7 @@ class ClickHouseSink(BatchingSink):
         self._table = table
         self._client_factory = client_factory
         self._client: Any = None
+        self._schema_ready = False
 
     async def _get_client(self) -> Any:
         if self._client is None:
@@ -58,11 +75,17 @@ class ClickHouseSink(BatchingSink):
                 import clickhouse_connect  # type: ignore[import-not-found]
 
                 self._client = await clickhouse_connect.get_async_client(dsn=self._dsn)
+        if not self._schema_ready:
+            await self._client.command(_create_table_sql(self._table))
+            self._schema_ready = True
         return self._client
 
     @staticmethod
     def _row(event: Event) -> list[Any]:
-        return [event.get(column, "") for column in COLUMNS]
+        return [
+            float(event.get(column, 0.0) or 0.0) if column in _NUMERIC else event.get(column, "")
+            for column in COLUMNS
+        ]
 
     async def _flush(self, batch: list[Event]) -> None:
         client = await self._get_client()
