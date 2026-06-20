@@ -132,7 +132,16 @@ process). It renders plain, colour-graded panels with no PromQL or Grafana setup
 and reads from two interchangeable sources: a self-contained **push** path (zero
 infra; members heartbeat to it) and an existing **Prometheus**.
 
-Bots are unchanged unless they opt in. The control plane runs on its own host:
+Bots are unchanged unless they opt in. The fastest path is the setup wizard,
+which mints a token and writes a ready `.env` + `docker-compose.fleet.yml` and
+prints the exact member snippet:
+
+```bash
+python -m argus.fleet init        # scaffold; then: docker compose -f docker-compose.fleet.yml up -d
+python -m argus.fleet doctor --url http://fleet-host:9190 --token secret   # diagnose
+```
+
+Or wire it by hand:
 
 ```bash
 # the control plane (its own process / container)
@@ -144,11 +153,14 @@ ARGUS_FLEET_TOKEN=secret ARGUS_FLEET_GROUP=asia \
     python bot.py
 ```
 
-It assigns each process a stable per-region number (never reused; a dead cluster
-keeps its slot, shown **down**) and persists topology across restarts. The
-member side is fail-open: a fleet outage never touches your bot loop. Full guide
-and deployment: [Fleet](https://github.com/AstorisTheBrave/argus/wiki/Fleet) and
-the [Fleet tutorial](https://github.com/AstorisTheBrave/argus/wiki/Tutorial-Fleet).
+**Secure by default:** a non-loopback bind with no token refuses to start; set a
+token (or `ARGUS_FLEET_TOKEN_FILE`). It assigns each process a stable per-region
+number (never reused; a dead cluster keeps its slot, shown **down**), persists
+topology across restarts, caps request bodies, strips its version banner, and
+exposes its own `/metrics` and `/readyz`. The member side is fail-open: a fleet
+outage never touches your bot loop. Full guide and deployment:
+[Fleet](https://github.com/AstorisTheBrave/argus/wiki/Fleet) and the
+[Fleet tutorial](https://github.com/AstorisTheBrave/argus/wiki/Tutorial-Fleet).
 
 ## Why no per-guild Prometheus labels?
 

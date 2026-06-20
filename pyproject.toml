@@ -32,6 +32,10 @@ classifiers = [
 [project.optional-dependencies]
 otlp = ["opentelemetry-sdk", "opentelemetry-exporter-otlp-proto-grpc"]
 clickhouse = ["clickhouse-connect[async]"]
+# Quality-of-life for the Fleet control plane: autoload a .env so
+# `python -m argus.fleet` just works after `argus-fleet init`. Optional; when
+# absent, the generated compose env_file / systemd EnvironmentFile load it.
+fleet = ["python-dotenv>=1.0"]
 
 [dependency-groups]
 dev = [
@@ -41,6 +45,7 @@ dev = [
     "pytest-asyncio",
     "pytest-aiohttp",
     "pytest-cov",
+    "python-dotenv>=1.0",
 ]
 
 [tool.hatch.version]
