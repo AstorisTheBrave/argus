@@ -49,3 +49,27 @@ jobs:
         run: npm test
       - name: Build
         run: npm run build
+
+  clickhouse:
+    runs-on: ubuntu-latest
+    services:
+      clickhouse:
+        image: clickhouse/clickhouse-server:24.8
+        ports:
+          - 8123:8123
+        options: >-
+          --health-cmd "clickhouse-client --query 'SELECT 1'"
+          --health-interval 5s --health-timeout 3s --health-retries 20
+    env:
+      CLICKHOUSE_DSN: http://localhost:8123
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Install (with clickhouse extra)
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[clickhouse]" --group dev
+      - name: Integration tests
+        run: pytest -m integration -v

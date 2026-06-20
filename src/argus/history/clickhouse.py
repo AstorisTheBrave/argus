@@ -35,9 +35,11 @@ ClientFactory = Callable[[], Awaitable[Any]]
 
 
 def _create_table_sql(table: str) -> str:
+    # ts is stored as the ISO-8601 string the hooks emit; queries parse it with
+    # parseDateTimeBestEffort. This keeps inserts trivial and timezone-safe.
     return (
         f"CREATE TABLE IF NOT EXISTS {table} ("
-        "ts DateTime64(3), "
+        "ts String, "
         "event LowCardinality(String), "
         "guild_id String, "
         "type LowCardinality(String), "

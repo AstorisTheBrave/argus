@@ -33,8 +33,9 @@ class AnalyticsQuery:
 
     async def interaction_volume(self, guild_id: str, *, since_days: int = 30) -> list[Any]:
         sql = (
-            f"SELECT toDate(ts) AS day, count() AS count FROM {self._table} "
-            "WHERE guild_id = %(guild_id)s AND ts >= now() - INTERVAL %(days)s DAY "
+            "SELECT toDate(parseDateTimeBestEffort(ts)) AS day, count() AS count "
+            f"FROM {self._table} WHERE guild_id = %(guild_id)s "
+            "AND parseDateTimeBestEffort(ts) >= now() - INTERVAL %(days)s DAY "
             "GROUP BY day ORDER BY day"
         )
         result = await self._client.query(
