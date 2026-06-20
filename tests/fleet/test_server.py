@@ -138,6 +138,50 @@ async def test_register_rate_limited(aiohttp_client: Any, tmp_path: Path) -> Non
     assert statuses[2] == 429  # burst of 2 exhausted from one IP
 
 
+async def test_trusted_proxy_rate_limits_per_forwarded_ip(
+    aiohttp_client: Any, tmp_path: Path
+) -> None:
+    client = await aiohttp_client(_app(tmp_path, register_burst=1, trusted_proxy=True))
+    # Distinct X-Forwarded-For -> distinct buckets, both allowed.
+    a = await client.post(
+        "/fleet/register",
+        json={"identity": "a", "fleet": "asia"},
+        headers={"X-Forwarded-For": "1.1.1.1"},
+    )
+    b = await client.post(
+        "/fleet/register",
+        json={"identity": "b", "fleet": "asia"},
+        headers={"X-Forwarded-For": "2.2.2.2"},
+    )
+    assert a.status == 200 and b.status == 200
+    # Same forwarded IP again -> rate limited.
+    c = await client.post(
+        "/fleet/register",
+        json={"identity": "c", "fleet": "asia"},
+        headers={"X-Forwarded-For": "1.1.1.1"},
+    )
+    assert c.status == 429
+
+
+async def test_forwarded_for_ignored_without_trusted_proxy(
+    aiohttp_client: Any, tmp_path: Path
+) -> None:
+    # Default: X-Forwarded-For is NOT trusted, so all requests share the peer IP.
+    client = await aiohttp_client(_app(tmp_path, register_burst=1))
+    first = await client.post(
+        "/fleet/register",
+        json={"identity": "a", "fleet": "asia"},
+        headers={"X-Forwarded-For": "1.1.1.1"},
+    )
+    second = await client.post(
+        "/fleet/register",
+        json={"identity": "b", "fleet": "asia"},
+        headers={"X-Forwarded-For": "2.2.2.2"},
+    )
+    assert first.status == 200
+    assert second.status == 429  # spoofed header ignored; same real peer
+
+
 async def test_max_clusters_cap(aiohttp_client: Any, tmp_path: Path) -> None:
     client = await aiohttp_client(_app(tmp_path, max_clusters=2, register_burst=100))
     for i in range(2):
@@ -292,6 +336,10 @@ async def test_self_metrics_exposes_fleet_gauges(aiohttp_client: Any, tmp_path: 
     assert "argus_fleet_heartbeats_total" in body
     assert 'argus_fleet_clusters{fleet="asia",status="up"}' in body
     assert "argus_fleet_registry_entries" in body
+    # The view-build latency histogram appears once a view has been built.
+    await client.get("/api/fleet/view")
+    body2 = await (await client.get("/metrics")).text()
+    assert "argus_fleet_view_build_seconds" in body2
 
 
 async def test_self_metrics_gated_by_token(aiohttp_client: Any, tmp_path: Path) -> None:

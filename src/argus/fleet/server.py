@@ -74,6 +74,17 @@ def _clean_for_log(value: str | None) -> str:
     return value.replace("\r", "").replace("\n", "")[:128]
 
 
+def _client_ip(request: web.Request, trusted_proxy: bool) -> str:
+    """The real client IP: the first X-Forwarded-For hop only when behind a
+    trusted proxy (operator opt-in), otherwise the direct peer. Never trust the
+    header by default, since any client can set it."""
+    if trusted_proxy:
+        forwarded = request.headers.get("X-Forwarded-For")
+        if forwarded:
+            return forwarded.split(",")[0].strip()
+    return request.remote or "unknown"
+
+
 def _make_fleet_auth_middleware(ingest_token: str | None, viewer_token: str | None) -> Middleware:
     """Path-aware auth: ingest paths need the ingest token, the rest the viewer.
 
@@ -201,12 +212,13 @@ def build_fleet_app(
     identity_watch = IdentityWatch()
 
     def _note_identity(identity: str, request: web.Request) -> None:
-        if identity_watch.observe(identity, request.remote):
+        remote = _client_ip(request, config.trusted_proxy)
+        if identity_watch.observe(identity, remote):
             metrics.identity_conflicts.inc()
             log.warning(
                 "identity %s seen from a new remote %s; duplicate CLUSTER_ID/fleet_id?",
                 _clean_for_log(identity),
-                _clean_for_log(request.remote),
+                _clean_for_log(remote),
             )
 
     async def health(_request: web.Request) -> web.StreamResponse:
@@ -237,7 +249,7 @@ def build_fleet_app(
         identity = str(body.get("identity") or "")
         if not identity:
             raise web.HTTPBadRequest(text="identity required\n")
-        if not register_limiter.allow(request.remote or "unknown"):
+        if not register_limiter.allow(_client_ip(request, config.trusted_proxy)):
             raise web.HTTPTooManyRequests(text="register rate exceeded\n")
         if not registry.knows(identity) and registry.count() >= config.max_clusters:
             raise web.HTTPForbidden(text="fleet cluster cap reached\n")
@@ -279,13 +291,14 @@ def build_fleet_app(
             if cache_data is not None and (loop.time() - cache_at) < ttl:
                 return cache_data
             registry.sweep()
-            try:
-                view = await source.fleet_snapshot(registry)
-            except Exception:
-                # Chaos resilience: a failing data source must not 500 the view.
-                # Fall back to registry topology (up/down) with zeroed metrics.
-                log.warning("data source failed; serving registry topology only", exc_info=True)
-                view = assemble(registry, ClusterValues())
+            with metrics.view_build_seconds.time():
+                try:
+                    view = await source.fleet_snapshot(registry)
+                except Exception:
+                    # Chaos resilience: a failing data source must not 500 the view.
+                    # Fall back to registry topology (up/down) with zeroed metrics.
+                    log.warning("data source failed; serving registry topology only", exc_info=True)
+                    view = assemble(registry, ClusterValues())
             cache_data = view.to_dict()
             cache_at = loop.time()
             return cache_data

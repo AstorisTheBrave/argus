@@ -70,6 +70,11 @@ def test_hardening_defaults() -> None:
     assert cfg.view_cache_ms == 1000
 
 
+def test_trusted_proxy_default_and_env() -> None:
+    assert FleetConfig.resolve(environ={}).trusted_proxy is False
+    assert FleetConfig.resolve(environ={"ARGUS_FLEET_TRUSTED_PROXY": "1"}).trusted_proxy is True
+
+
 def test_abuse_cap_defaults_and_env() -> None:
     cfg = FleetConfig.resolve(environ={})
     assert cfg.max_clusters == 5000

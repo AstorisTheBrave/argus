@@ -29,6 +29,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import logging
+import random
 import uuid
 from collections.abc import Callable
 from pathlib import Path
@@ -118,7 +119,10 @@ class FleetClient:
 
     async def _loop(self, snapshot_provider: SnapshotProvider | None) -> None:
         while True:
-            await asyncio.sleep(self._heartbeat_interval)
+            # Jitter (+/-10%) so a fleet restarting together does not heartbeat in
+            # lockstep and thunder the control plane.
+            jitter = self._heartbeat_interval * 0.1
+            await asyncio.sleep(self._heartbeat_interval + random.uniform(-jitter, jitter))
             await self._heartbeat(snapshot_provider)
 
     async def _heartbeat(self, snapshot_provider: SnapshotProvider | None) -> None:
