@@ -36,6 +36,7 @@ from pathlib import Path
 from argus.exposition.server import start_server
 from argus.fleet import doctor, wizard
 from argus.fleet.config import FleetConfig
+from argus.fleet.lock import StateLock
 from argus.fleet.registry import Registry
 from argus.fleet.server import build_fleet_app, ensure_secure_bind
 from argus.fleet.sources.base import FleetDataSource
@@ -73,6 +74,8 @@ def load_dotenv_if_available(environ: dict[str, str] | None = None) -> bool:
 
 async def _serve(config: FleetConfig) -> None:
     ensure_secure_bind(config)
+    lock = StateLock(config.state_path)
+    lock.acquire()  # refuse a second instance sharing this state file
     registry = Registry(
         config.state_path,
         config.heartbeat_interval,
@@ -85,6 +88,7 @@ async def _serve(config: FleetConfig) -> None:
         await asyncio.Event().wait()  # run until cancelled
     finally:
         await runner.cleanup()
+        lock.release()
 
 
 def _cmd_run() -> int:
