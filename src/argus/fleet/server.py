@@ -288,6 +288,7 @@ def build_fleet_app(
         while True:
             await asyncio.sleep(config.heartbeat_interval)
             registry.sweep()
+            registry.prune()  # drop long-dead entries when retention is enabled
             # Coalesced, off-loop persistence: serialize on the loop, write on a
             # thread so a slow disk never stalls heartbeat handling.
             payload = registry.flush_payload()

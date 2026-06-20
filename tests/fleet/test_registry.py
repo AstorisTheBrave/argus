@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
+
+import pytest
 
 from argus.fleet.registry import STATUS_DOWN, STATUS_UP, Registry
 
@@ -133,3 +136,54 @@ def test_mutations_coalesce_no_write_until_flush(tmp_path: Path) -> None:
 def test_flush_payload_none_when_clean(tmp_path: Path) -> None:
     reg = Registry(state_path=tmp_path / "state.json")
     assert reg.flush_payload() is None  # nothing registered, not dirty
+
+
+def test_prune_off_by_default(tmp_path: Path) -> None:
+    reg = Registry(state_path=tmp_path / "s.json", heartbeat_interval=10, ttl_factor=1)
+    reg.register("a", "asia", now=0.0)
+    reg.sweep(now=1_000_000.0)  # long down
+    assert reg.prune(now=1_000_000.0) == 0  # retention_days=0 -> never prune
+    assert reg.count() == 1
+
+
+def test_prune_drops_long_dead_keeps_numbers_monotonic(tmp_path: Path) -> None:
+    reg = Registry(
+        state_path=tmp_path / "s.json", heartbeat_interval=10, ttl_factor=1, retention_days=1
+    )
+    reg.register("a", "asia", now=0.0)
+    reg.register("b", "asia", now=0.0)
+    # Two days later both are down and past retention.
+    later = 2 * 86400.0
+    reg.sweep(now=later)
+    assert reg.prune(now=later) == 2
+    assert reg.count() == 0
+    # Numbers are never reused: the next asia identity is 3, not 1.
+    assert reg.register("c", "asia") == 3
+
+
+def test_prune_keeps_up_clusters(tmp_path: Path) -> None:
+    reg = Registry(
+        state_path=tmp_path / "s.json", heartbeat_interval=10, ttl_factor=3, retention_days=1
+    )
+    reg.register("a", "asia", now=2 * 86400.0)  # seen recently relative to now below
+    reg.sweep(now=2 * 86400.0)
+    assert reg.prune(now=2 * 86400.0) == 0  # still up
+    assert reg.count() == 1
+
+
+def test_state_schema_version_persisted_and_loaded(tmp_path: Path) -> None:
+    path = tmp_path / "s.json"
+    reg = Registry(state_path=path)
+    reg.register("a", "asia", now=1.0)
+    reg.save()
+
+    assert json.loads(path.read_text(encoding="utf-8"))["version"] == 1
+    Registry(state_path=path)  # reloads without error
+
+
+def test_unknown_schema_version_refuses_to_load(tmp_path: Path) -> None:
+
+    path = tmp_path / "s.json"
+    path.write_text(json.dumps({"version": 99, "counters": {}, "entries": []}), encoding="utf-8")
+    with pytest.raises(RuntimeError, match="unsupported fleet state schema version"):
+        Registry(state_path=path)

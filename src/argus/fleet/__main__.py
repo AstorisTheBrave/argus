@@ -73,7 +73,12 @@ def load_dotenv_if_available(environ: dict[str, str] | None = None) -> bool:
 
 async def _serve(config: FleetConfig) -> None:
     ensure_secure_bind(config)
-    registry = Registry(config.state_path, config.heartbeat_interval, config.ttl_factor)
+    registry = Registry(
+        config.state_path,
+        config.heartbeat_interval,
+        config.ttl_factor,
+        config.retention_days,
+    )
     app = build_fleet_app(config, registry, build_source(config))
     runner = await start_server(app, config.host, config.port)
     try:
