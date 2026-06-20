@@ -97,8 +97,9 @@ class FleetClient:
     async def _register(self) -> None:
         from argus import __version__
 
+        if self._session is None:
+            return
         try:
-            assert self._session is not None
             body: dict[str, Any] = {
                 "identity": self._identity,
                 "fleet": self._config.fleet_group,
@@ -112,7 +113,7 @@ class FleetClient:
                 headers=self._headers(),
             ) as resp:
                 resp.raise_for_status()
-        except (aiohttp.ClientError, TimeoutError, AssertionError) as exc:
+        except Exception as exc:  # fail open: never let fleet wiring touch the bot
             log.debug("argus fleet register failed (will retry via heartbeat): %s", exc)
 
     async def _loop(self, snapshot_provider: SnapshotProvider | None) -> None:
@@ -121,10 +122,12 @@ class FleetClient:
             await self._heartbeat(snapshot_provider)
 
     async def _heartbeat(self, snapshot_provider: SnapshotProvider | None) -> None:
+        if self._session is None:
+            return
         try:
-            assert self._session is not None
             body: dict[str, Any] = {"identity": self._identity}
             if snapshot_provider is not None:
+                # A broken snapshot provider must not kill the loop either.
                 body["snapshot"] = snapshot_provider()
             async with self._session.post(
                 f"{self._config.fleet_url}/fleet/heartbeat",
@@ -133,7 +136,7 @@ class FleetClient:
             ) as resp:
                 if resp.status == 404:  # control plane forgot us; re-register
                     await self._register()
-        except (aiohttp.ClientError, TimeoutError, AssertionError) as exc:
+        except Exception as exc:  # fail open: drop this sample, never raise
             log.debug("argus fleet heartbeat failed (dropped): %s", exc)
 
     async def aclose(self) -> None:
