@@ -58,7 +58,14 @@ class Registry:
     event loop, so all mutations are serialized on that loop.
     """
 
-    __slots__ = ("_counters", "_entries", "_heartbeat_interval", "_state_path", "_ttl_factor")
+    __slots__ = (
+        "_counters",
+        "_dirty",
+        "_entries",
+        "_heartbeat_interval",
+        "_state_path",
+        "_ttl_factor",
+    )
 
     def __init__(
         self,
@@ -71,6 +78,7 @@ class Registry:
         self._ttl_factor = ttl_factor
         self._counters: dict[str, int] = {}
         self._entries: dict[str, ClusterEntry] = {}
+        self._dirty = False
         self.load()
 
     # -- mutation ---------------------------------------------------------
@@ -91,7 +99,7 @@ class Registry:
             existing.version = version
             existing.last_seen = stamp
             existing.status = STATUS_UP
-            self.save()
+            self._dirty = True
             return existing.number
 
         number = self._counters.get(fleet, 0) + 1
@@ -105,7 +113,7 @@ class Registry:
             status=STATUS_UP,
             version=version,
         )
-        self.save()
+        self._dirty = True
         return number
 
     def heartbeat(
@@ -122,7 +130,7 @@ class Registry:
         entry.status = STATUS_UP
         if snapshot is not None:
             entry.last_snapshot = snapshot
-        self.save()
+        self._dirty = True
         return True
 
     def sweep(self, now: float | None = None) -> None:
@@ -146,16 +154,39 @@ class Registry:
         return grouped
 
     # -- persistence ------------------------------------------------------
+    #
+    # Mutations mark the registry dirty rather than writing on every call: a
+    # per-heartbeat full-file rewrite would block the event loop and amplify disk
+    # I/O at scale. The serialization (``_serialize``) runs on the loop for a
+    # consistent snapshot with no cross-thread dict race; the caller writes the
+    # returned bytes off-loop (``write_payload`` via ``run_in_executor``).
+    # Numbers are assigned in memory synchronously, so a crash before the next
+    # flush only risks losing a few seconds of recent registrations.
 
-    def save(self) -> None:
-        """Persist counters and entries to ``state_path`` atomically."""
+    def _serialize(self) -> str:
         payload = {
             "counters": self._counters,
             "entries": [asdict(entry) for entry in self._entries.values()],
         }
+        return json.dumps(payload)
+
+    def write_payload(self, data: str) -> None:
+        """Write a serialized payload to ``state_path`` atomically (off-loop safe)."""
         tmp = self._state_path.with_suffix(self._state_path.suffix + ".tmp")
-        tmp.write_text(json.dumps(payload), encoding="utf-8")
+        tmp.write_text(data, encoding="utf-8")
         tmp.replace(self._state_path)
+
+    def flush_payload(self) -> str | None:
+        """If dirty, clear the flag and return a payload to write; else None."""
+        if not self._dirty:
+            return None
+        self._dirty = False
+        return self._serialize()
+
+    def save(self) -> None:
+        """Serialize and write immediately (synchronous; tests and forced flush)."""
+        self.write_payload(self._serialize())
+        self._dirty = False
 
     def load(self) -> None:
         """Load state from ``state_path`` if present; otherwise start empty."""

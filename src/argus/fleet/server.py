@@ -199,9 +199,15 @@ def build_fleet_app(
         return web.FileResponse(index_html)
 
     async def _sweeper(running: web.Application) -> None:
+        loop = asyncio.get_running_loop()
         while True:
             await asyncio.sleep(config.heartbeat_interval)
             registry.sweep()
+            # Coalesced, off-loop persistence: serialize on the loop, write on a
+            # thread so a slow disk never stalls heartbeat handling.
+            payload = registry.flush_payload()
+            if payload is not None:
+                await loop.run_in_executor(None, registry.write_payload, payload)
 
     async def _on_startup(running: web.Application) -> None:
         running[_SWEEPER_KEY] = asyncio.create_task(_sweeper(running))
@@ -212,6 +218,8 @@ def build_fleet_app(
             task.cancel()
             with contextlib.suppress(asyncio.CancelledError):
                 await task
+        # Final flush on shutdown so the latest state is durable.
+        await asyncio.get_running_loop().run_in_executor(None, registry.save)
 
     app.router.add_get("/healthz", health)
     app.router.add_get("/readyz", ready)
