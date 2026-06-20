@@ -1,0 +1,39 @@
+# Argus Fleet control plane: the released SDK run as the standalone aggregation
+# service (python -m argus.fleet), with the dashboard SPA bundled so it serves
+# the fleet UI. Published per release to GHCR as
+# ghcr.io/astoristhebrave/argus-fleet:<version> and :latest.
+#
+#   docker run -e ARGUS_FLEET_TOKEN=... -p 9190:9190 \
+#       ghcr.io/astoristhebrave/argus-fleet:latest
+#
+# State (the cluster registry) persists to ARGUS_FLEET_STATE; mount a volume to
+# keep per-fleet numbers across restarts. Pin a version tag in production.
+
+# Stage 1: build the dashboard SPA (serves the fleet UI in fleet mode).
+FROM node:24-slim AS web
+WORKDIR /web
+COPY frontend/package.json frontend/package-lock.json ./
+RUN npm ci
+COPY frontend/ ./
+RUN npm run build
+
+# Stage 2: build the wheel with the SPA bundled in.
+FROM python:3.12-slim AS build
+WORKDIR /src
+COPY . .
+COPY --from=web /web/dist/ src/argus/dashboard/static/
+RUN pip install --no-cache-dir build && python -m build --wheel
+
+# Stage 3: slim runtime.
+FROM python:3.12-slim
+LABEL org.opencontainers.image.source="https://github.com/AstorisTheBrave/argus"
+LABEL org.opencontainers.image.description="Argus Fleet control plane (standalone aggregation service)."
+LABEL org.opencontainers.image.licenses="AGPL-3.0-or-later"
+COPY --from=build /src/dist/*.whl /tmp/
+RUN pip install --no-cache-dir /tmp/*.whl && rm -rf /tmp/*.whl
+WORKDIR /app
+ENV ARGUS_FLEET_HOST=0.0.0.0
+ENV ARGUS_FLEET_STATE=/data/argus-fleet-state.json
+VOLUME ["/data"]
+EXPOSE 9190
+CMD ["python", "-m", "argus.fleet"]

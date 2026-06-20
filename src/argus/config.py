@@ -33,6 +33,8 @@ DEFAULT_METRICS_PATH = "/metrics"
 DEFAULT_NAMESPACE = "discord"
 DEFAULT_DASHBOARD_PATH = "/"
 DEFAULT_DASHBOARD_INTERVAL = 5
+DEFAULT_FLEET_GROUP = "default"
+DEFAULT_FLEET_STATE_DIR = "."
 
 _TRUE = frozenset({"1", "true", "yes", "on"})
 _FALSE = frozenset({"0", "false", "no", "off", ""})
@@ -72,6 +74,12 @@ class ArgusConfig:
     dashboard_auth_token: str | None = None
     grafana_url: str | None = None
     clickhouse_dsn: str | None = None
+    # Fleet control plane (opt-in): when fleet_url is unset, no fleet code runs.
+    fleet_url: str | None = None
+    fleet_token: str | None = None
+    fleet_group: str = DEFAULT_FLEET_GROUP
+    fleet_id: str | None = None
+    fleet_state_dir: str = DEFAULT_FLEET_STATE_DIR
 
     @classmethod
     def resolve(
@@ -90,6 +98,11 @@ class ArgusConfig:
         dashboard_auth_token: str | None = None,
         grafana_url: str | None = None,
         clickhouse_dsn: str | None = None,
+        fleet_url: str | None = None,
+        fleet_token: str | None = None,
+        fleet_group: str | None = None,
+        fleet_id: str | None = None,
+        fleet_state_dir: str | None = None,
         environ: dict[str, str] | None = None,
     ) -> ArgusConfig:
         """Build a config from kwargs, falling back to env, then defaults.
@@ -128,6 +141,15 @@ class ArgusConfig:
             ),
             grafana_url=cls._pick_optional(grafana_url, env.get("ARGUS_GRAFANA_URL")),
             clickhouse_dsn=cls._pick_optional(clickhouse_dsn, env.get("ARGUS_CLICKHOUSE_DSN")),
+            fleet_url=cls._pick_optional(fleet_url, env.get("ARGUS_FLEET_URL")),
+            fleet_token=cls._pick_optional(fleet_token, env.get("ARGUS_FLEET_TOKEN")),
+            fleet_group=cls._pick_str(
+                fleet_group, env.get("ARGUS_FLEET_GROUP"), DEFAULT_FLEET_GROUP
+            ),
+            fleet_id=cls._pick_optional(fleet_id, env.get("ARGUS_FLEET_ID")),
+            fleet_state_dir=cls._pick_str(
+                fleet_state_dir, env.get("ARGUS_FLEET_STATE_DIR"), DEFAULT_FLEET_STATE_DIR
+            ),
         )
 
     @staticmethod

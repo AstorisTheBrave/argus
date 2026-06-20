@@ -222,3 +222,127 @@ body {
   background: rgba(255, 255, 255, 0.06);
   color: inherit;
 }
+
+/* --- Fleet control plane (Global -> Fleet -> Cluster) --- */
+
+.app.fleet {
+  grid-template-columns: 1fr;
+}
+
+.fleet-crumbs {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: var(--space-4, 16px);
+}
+
+.fleet-crumbs .crumb {
+  background: none;
+  border: none;
+  color: inherit;
+  cursor: pointer;
+  opacity: 0.6;
+  font-size: 14px;
+  padding: 4px 6px;
+}
+
+.fleet-crumbs .crumb:not(.current):hover {
+  opacity: 1;
+}
+
+.fleet-crumbs .crumb.current {
+  opacity: 1;
+  cursor: default;
+}
+
+.fleet-crumbs .crumb + .crumb::before,
+.fleet-crumbs .crumb.current::before {
+  content: "/";
+  margin-right: 8px;
+  opacity: 0.4;
+}
+
+.fleet-version {
+  margin-left: auto;
+  font-size: 12px;
+  opacity: 0.5;
+}
+
+.fleet-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: var(--space-4, 16px);
+}
+
+.fleet-card {
+  text-align: left;
+  padding: var(--space-4, 16px);
+  border-radius: var(--radius-lg, 20px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: inherit;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.fleet-card.down {
+  opacity: 0.55;
+}
+
+.fleet-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.fleet-name {
+  font-weight: 600;
+}
+
+.fleet-card-body {
+  opacity: 0.7;
+  font-size: 14px;
+}
+
+.fleet-pill {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.fleet-pill.good {
+  background: rgba(34, 197, 94, 0.18);
+  color: #4ade80;
+}
+
+.fleet-pill.warn {
+  background: rgba(234, 179, 8, 0.18);
+  color: #facc15;
+}
+
+.fleet-pill.bad {
+  background: rgba(244, 63, 94, 0.18);
+  color: #fb7185;
+}
+
+.fleet-stat.good .value {
+  color: #4ade80;
+}
+
+.fleet-stat.warn .value {
+  color: #facc15;
+}
+
+.fleet-stat.bad .value {
+  color: #fb7185;
+}
+
+.muted {
+  opacity: 0.55;
+  font-size: 13px;
+}

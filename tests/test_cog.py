@@ -2,10 +2,17 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+from typing import Any
+
 import aiohttp
 
 from argus import Argus, ArgusCog
 from argus.config import ArgusConfig
+from argus.fleet.config import FleetConfig
+from argus.fleet.registry import Registry
+from argus.fleet.server import build_fleet_app
+from argus.fleet.sources.push import PushSource
 from tests.conftest import FakeBot
 
 _LISTENER_NAMES = {
@@ -77,6 +84,38 @@ async def test_dashboard_served_by_default(free_port: int) -> None:
                 assert resp.status == 200
     finally:
         await cog.cog_unload()
+
+
+async def test_cog_registers_with_fleet_when_configured(
+    aiohttp_server: Any, free_port: int, tmp_path: Path
+) -> None:
+    fleet_registry = Registry(tmp_path / "fleet-state.json")
+    fleet = await aiohttp_server(
+        build_fleet_app(FleetConfig.resolve(environ={}), fleet_registry, PushSource())
+    )
+    fleet_url = str(fleet.make_url("")).rstrip("/")
+
+    cog = ArgusCog(
+        FakeBot(),
+        ArgusConfig.resolve(
+            host="127.0.0.1",
+            port=free_port,
+            dashboard=False,
+            fleet_url=fleet_url,
+            fleet_group="asia",
+            fleet_state_dir=str(tmp_path),
+            environ={},
+        ),
+    )
+    await cog.cog_load()
+    try:
+        # The opt-in client registered the process into the fleet on load.
+        entries = fleet_registry.entries()
+        assert len(entries) == 1
+        assert entries[0].fleet == "asia"
+    finally:
+        await cog.cog_unload()
+        assert cog._fleet_client is None
 
 
 async def test_dashboard_can_be_disabled(free_port: int) -> None:

@@ -13,6 +13,9 @@ export interface DashConfig {
   analytics_enabled: boolean;
   version: string;
   auth_required: boolean;
+  // The fleet control plane serves the same SPA with this flag set; the
+  // per-process snapshot stream does not exist there.
+  fleet?: boolean;
 }
 
 export interface Frame {
@@ -62,13 +65,16 @@ export function useDashboard() {
       .catch(() => undefined);
   }, [token]);
 
+  const isFleet = config?.fleet === true;
   useEffect(() => {
+    // The control plane has no /api/stream; skip the per-process subscription.
+    if (isFleet) return;
     const unsubscribe = subscribeSnapshots(
       (snap) => setFrames((prev) => [...prev.slice(-(MAX_FRAMES - 1)), { t: Date.now(), snap }]),
       { token },
     );
     return unsubscribe;
-  }, [token]);
+  }, [token, isFleet]);
 
   const latest = frames.length > 0 ? frames[frames.length - 1].snap : null;
   return { config, frames, latest, token, setToken, authError };

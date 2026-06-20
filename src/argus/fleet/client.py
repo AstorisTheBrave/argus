@@ -1,0 +1,143 @@
+# Argus — discord.py observability SDK
+# Copyright (C) 2026 AstorisTheBrave
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Affero General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+# GNU Affero General Public License for more details.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+"""The member-side fleet client: opt-in, fail-open, bounded.
+
+When ``fleet_url`` is set, ``ArgusCog.cog_load`` starts a ``FleetClient`` that
+registers once (to claim its stable per-fleet number) then heartbeats every
+``heartbeat_interval``, optionally attaching ``build_snapshot``. Every network
+call is wrapped so a fleet outage or error never touches the bot loop (mirrors
+invariant 5). At most one heartbeat is in flight; on failure it drops the sample
+and retries on the next tick.
+"""
+
+from __future__ import annotations
+
+import asyncio
+import contextlib
+import logging
+import uuid
+from collections.abc import Callable
+from pathlib import Path
+from typing import TYPE_CHECKING, Any
+
+import aiohttp
+
+if TYPE_CHECKING:
+    from argus.config import ArgusConfig
+
+log = logging.getLogger("argus")
+
+SnapshotProvider = Callable[[], dict[str, Any]]
+
+_IDENTITY_FILE = "argus-fleet-id"
+
+
+class FleetClient:
+    """Registers with and heartbeats to a fleet control plane, failing open."""
+
+    __slots__ = ("_config", "_heartbeat_interval", "_identity", "_session", "_task")
+
+    def __init__(self, config: ArgusConfig, heartbeat_interval: float = 15) -> None:
+        self._config = config
+        self._heartbeat_interval = heartbeat_interval
+        self._identity = self._resolve_identity()
+        self._session: aiohttp.ClientSession | None = None
+        self._task: asyncio.Task[None] | None = None
+
+    def _resolve_identity(self) -> str:
+        """Use the configured id, else a UUID persisted to the state dir."""
+        if self._config.fleet_id:
+            return self._config.fleet_id
+        path = Path(self._config.fleet_state_dir) / _IDENTITY_FILE
+        try:
+            if path.exists():
+                stored = path.read_text(encoding="utf-8").strip()
+                if stored:
+                    return stored
+            identity = uuid.uuid4().hex
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(identity, encoding="utf-8")
+            return identity
+        except OSError:
+            # A read-only or missing state dir must not stop the bot; fall back
+            # to an ephemeral identity (a new number on each restart).
+            return uuid.uuid4().hex
+
+    @property
+    def identity(self) -> str:
+        return self._identity
+
+    def _headers(self) -> dict[str, str]:
+        if self._config.fleet_token:
+            return {"Authorization": f"Bearer {self._config.fleet_token}"}
+        return {}
+
+    async def start(self, snapshot_provider: SnapshotProvider | None = None) -> None:
+        """Register, then run the heartbeat loop until :meth:`aclose`."""
+        self._session = aiohttp.ClientSession()
+        await self._register()
+        self._task = asyncio.create_task(self._loop(snapshot_provider))
+
+    async def _register(self) -> None:
+        from argus import __version__
+
+        try:
+            assert self._session is not None
+            async with self._session.post(
+                f"{self._config.fleet_url}/fleet/register",
+                json={
+                    "identity": self._identity,
+                    "fleet": self._config.fleet_group,
+                    "version": __version__,
+                },
+                headers=self._headers(),
+            ) as resp:
+                resp.raise_for_status()
+        except (aiohttp.ClientError, TimeoutError, AssertionError) as exc:
+            log.debug("argus fleet register failed (will retry via heartbeat): %s", exc)
+
+    async def _loop(self, snapshot_provider: SnapshotProvider | None) -> None:
+        while True:
+            await asyncio.sleep(self._heartbeat_interval)
+            await self._heartbeat(snapshot_provider)
+
+    async def _heartbeat(self, snapshot_provider: SnapshotProvider | None) -> None:
+        try:
+            assert self._session is not None
+            body: dict[str, Any] = {"identity": self._identity}
+            if snapshot_provider is not None:
+                body["snapshot"] = snapshot_provider()
+            async with self._session.post(
+                f"{self._config.fleet_url}/fleet/heartbeat",
+                json=body,
+                headers=self._headers(),
+            ) as resp:
+                if resp.status == 404:  # control plane forgot us; re-register
+                    await self._register()
+        except (aiohttp.ClientError, TimeoutError, AssertionError) as exc:
+            log.debug("argus fleet heartbeat failed (dropped): %s", exc)
+
+    async def aclose(self) -> None:
+        """Stop the loop and close the HTTP session."""
+        if self._task is not None:
+            self._task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await self._task
+            self._task = None
+        if self._session is not None:
+            await self._session.close()
+            self._session = None

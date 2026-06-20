@@ -111,3 +111,35 @@ def test_dashboard_kwargs_override_env() -> None:
     cfg = ArgusConfig.resolve(dashboard=False, dashboard_auth_token="t", environ=env)
     assert cfg.dashboard is False
     assert cfg.dashboard_auth_token == "t"
+
+
+def test_fleet_defaults_are_opt_out() -> None:
+    cfg = ArgusConfig.resolve(environ={})
+    assert cfg.fleet_url is None
+    assert cfg.fleet_token is None
+    assert cfg.fleet_group == "default"
+    assert cfg.fleet_id is None
+    assert cfg.fleet_state_dir == "."
+
+
+def test_fleet_env_mapping() -> None:
+    env = {
+        "ARGUS_FLEET_URL": "http://fleet:9190",
+        "ARGUS_FLEET_TOKEN": "tok",
+        "ARGUS_FLEET_GROUP": "asia",
+        "ARGUS_FLEET_ID": "node-1",
+        "ARGUS_FLEET_STATE_DIR": "/var/lib/argus",
+    }
+    cfg = ArgusConfig.resolve(environ=env)
+    assert cfg.fleet_url == "http://fleet:9190"
+    assert cfg.fleet_token == "tok"
+    assert cfg.fleet_group == "asia"
+    assert cfg.fleet_id == "node-1"
+    assert cfg.fleet_state_dir == "/var/lib/argus"
+
+
+def test_fleet_kwargs_override_env() -> None:
+    env = {"ARGUS_FLEET_GROUP": "asia"}
+    cfg = ArgusConfig.resolve(fleet_group="europe", fleet_url="http://x", environ=env)
+    assert cfg.fleet_group == "europe"
+    assert cfg.fleet_url == "http://x"

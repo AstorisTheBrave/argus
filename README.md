@@ -30,7 +30,21 @@ pip install argus-dpy
 
 Python 3.10+, `discord.py >= 2.4`. Optional extras: `argus-dpy[otlp]`,
 `argus-dpy[clickhouse]`. A reference container is published at
-`ghcr.io/astoristhebrave/argus`.
+`ghcr.io/astoristhebrave/argus`, and the [Fleet control plane](#fleet-control-plane-opt-in)
+at `ghcr.io/astoristhebrave/argus-fleet`.
+
+**Compatibility.** Argus targets upstream **discord.py 2.x** and uses its
+asynchronous cog lifecycle (`await bot.add_cog`, async `cog_load`/`cog_unload`)
+and `setup_hook` chaining. Forks that vendor the `discord` namespace and follow
+the same async-cog semantics may work but are untested; Pycord differs (a
+synchronous `add_cog` and a non-coroutine `cog_unload`) and is not supported
+unmodified. Because every fork ships the same `discord` import name, only one can
+be installed at a time, and `pip install argus-dpy` pulls upstream discord.py.
+See [Compatibility](https://github.com/AstorisTheBrave/argus/wiki/Compatibility).
+
+**New here?** Follow a tutorial end to end:
+[Single bot](https://github.com/AstorisTheBrave/argus/wiki/Tutorial-Single-Bot)
+or [Fleet at scale](https://github.com/AstorisTheBrave/argus/wiki/Tutorial-Fleet).
 
 ## Behaviour
 
@@ -108,6 +122,33 @@ dashboards. Set `otlp_endpoint` to also push via OpenTelemetry. Run one Argus
 per process with a distinct `cluster_id` for clustered bots.
 See [Clustering](https://github.com/AstorisTheBrave/argus/wiki/Clustering) and
 [OTLP](https://github.com/AstorisTheBrave/argus/wiki/OTLP).
+
+## Fleet control plane (opt-in)
+
+Running many bot processes across regions? The **Argus Fleet** control plane is a
+separate, opt-in service that aggregates them into one readable, multi-tier view:
+**Global** (everything) -> **Fleet** (a region, e.g. `asia`) -> **Cluster** (one
+process). It renders plain, colour-graded panels with no PromQL or Grafana setup,
+and reads from two interchangeable sources: a self-contained **push** path (zero
+infra; members heartbeat to it) and an existing **Prometheus**.
+
+Bots are unchanged unless they opt in. The control plane runs on its own host:
+
+```bash
+# the control plane (its own process / container)
+ARGUS_FLEET_TOKEN=secret python -m argus.fleet          # serves :9190
+
+# each bot opts in with a few env vars (or kwargs)
+ARGUS_FLEET_URL=http://fleet-host:9190 \
+ARGUS_FLEET_TOKEN=secret ARGUS_FLEET_GROUP=asia \
+    python bot.py
+```
+
+It assigns each process a stable per-region number (never reused; a dead cluster
+keeps its slot, shown **down**) and persists topology across restarts. The
+member side is fail-open: a fleet outage never touches your bot loop. Full guide
+and deployment: [Fleet](https://github.com/AstorisTheBrave/argus/wiki/Fleet) and
+the [Fleet tutorial](https://github.com/AstorisTheBrave/argus/wiki/Tutorial-Fleet).
 
 ## Why no per-guild Prometheus labels?
 
