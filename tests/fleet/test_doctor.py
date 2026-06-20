@@ -46,6 +46,19 @@ async def test_doctor_unreachable() -> None:
     assert any("cannot reach" in f for f in report.findings)
 
 
+async def test_doctor_flags_namespace_mismatch(aiohttp_server: Any, tmp_path: Path) -> None:
+    server = await aiohttp_server(_fleet(tmp_path))  # namespace defaults to "discord"
+    report = await doctor.check(str(server.make_url("")), namespace="wrongns")
+    assert report.ok is False
+    assert any("expected 'wrongns'" in f for f in report.findings)
+
+
+async def test_doctor_namespace_match_ok(aiohttp_server: Any, tmp_path: Path) -> None:
+    server = await aiohttp_server(_fleet(tmp_path))
+    report = await doctor.check(str(server.make_url("")), namespace="discord")
+    assert report.ok is True
+
+
 def test_inspect_view_flags_down_clusters() -> None:
     report = doctor.DoctorReport()
     view: dict[str, object] = {"fleets": [{"name": "asia", "clusters_total": 3, "clusters_up": 1}]}

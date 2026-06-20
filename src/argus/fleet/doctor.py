@@ -25,6 +25,7 @@ Returns a structured report; the CLI prints it and exits non-zero on problems.
 
 from __future__ import annotations
 
+import contextlib
 from dataclasses import dataclass, field
 
 import aiohttp
@@ -43,8 +44,14 @@ class DoctorReport:
             self.ok = False
 
 
-async def check(url: str, token: str | None = None, *, timeout: float = 10.0) -> DoctorReport:
-    """Probe ``url``: reachability, auth, and cluster health."""
+async def check(
+    url: str,
+    token: str | None = None,
+    *,
+    namespace: str | None = None,
+    timeout: float = 10.0,
+) -> DoctorReport:
+    """Probe ``url``: reachability, auth, cluster health, and namespace match."""
     report = DoctorReport()
     base = url.rstrip("/")
     headers = {"Authorization": f"Bearer {token}"} if token else {}
@@ -68,6 +75,16 @@ async def check(url: str, token: str | None = None, *, timeout: float = 10.0) ->
                     _inspect_view(await resp.json(), report)
         except (aiohttp.ClientError, TimeoutError) as exc:
             report.add(False, f"view request failed: {exc}")
+
+        if namespace is not None:
+            with contextlib.suppress(aiohttp.ClientError, TimeoutError):
+                async with session.get(f"{base}/api/config", headers=headers) as resp:
+                    if resp.status == 200:
+                        actual = (await resp.json()).get("namespace")
+                        report.add(
+                            actual == namespace,
+                            f"namespace {actual!r} (expected {namespace!r})",
+                        )
 
     return report
 

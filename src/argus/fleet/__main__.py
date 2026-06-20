@@ -132,7 +132,9 @@ def _cmd_init(args: argparse.Namespace, *, interactive: bool | None = None) -> i
 
 
 def _cmd_doctor(args: argparse.Namespace) -> int:
-    report = asyncio.run(doctor.check(args.url, args.token, timeout=args.timeout))
+    report = asyncio.run(
+        doctor.check(args.url, args.token, namespace=args.namespace, timeout=args.timeout)
+    )
     for finding in report.findings:
         print(finding)
     return 0 if report.ok else 1
@@ -157,6 +159,7 @@ def _build_parser() -> argparse.ArgumentParser:
     doctor_p = sub.add_parser("doctor", help="probe a running control plane")
     doctor_p.add_argument("--url", required=True, help="fleet base URL, e.g. http://host:9190")
     doctor_p.add_argument("--token", default=None)
+    doctor_p.add_argument("--namespace", default=None, help="expected metric namespace")
     doctor_p.add_argument("--timeout", type=float, default=10.0)
     return parser
 
