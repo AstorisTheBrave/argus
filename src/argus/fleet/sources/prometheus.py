@@ -47,9 +47,11 @@ DEFAULT_QUERY_TIMEOUT = 10.0
 class PromQueryClient(Protocol):
     """Runs an instant PromQL query, returning ``(labels, value)`` rows."""
 
-    async def query(self, promql: str) -> QueryResult: ...
+    async def query(self, promql: str) -> QueryResult:
+        """Run ``promql`` and return ``(labels, value)`` rows."""
 
-    async def aclose(self) -> None: ...
+    async def aclose(self) -> None:
+        """Release any held resources (e.g. an HTTP session)."""
 
 
 class HTTPQueryClient:
