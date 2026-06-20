@@ -69,7 +69,7 @@ class _LiveCollector:
 class FleetMetrics:
     """The control plane's own metric registry: live gauges + event counters."""
 
-    __slots__ = ("heartbeats", "registrations", "registry")
+    __slots__ = ("heartbeats", "identity_conflicts", "registrations", "registry")
 
     def __init__(self, registry: Registry) -> None:
         self.registry = CollectorRegistry()
@@ -81,6 +81,11 @@ class FleetMetrics:
         self.heartbeats = Counter(
             "argus_fleet_heartbeats_total",
             "Total fleet heartbeat calls handled.",
+            registry=self.registry,
+        )
+        self.identity_conflicts = Counter(
+            "argus_fleet_identity_conflicts_total",
+            "Times an identity was seen from a new remote (duplicate CLUSTER_ID/fleet_id).",
             registry=self.registry,
         )
         self.registry.register(_LiveCollector(registry))

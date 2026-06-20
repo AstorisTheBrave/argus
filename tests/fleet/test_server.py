@@ -8,7 +8,13 @@ from typing import Any
 from argus.fleet.config import FleetConfig
 from argus.fleet.registry import Registry
 from argus.fleet.server import build_fleet_app
+from argus.fleet.sources.base import ClusterValues, FleetDataSource
 from argus.fleet.sources.push import PushSource
+
+
+class _RaisingSource(FleetDataSource):
+    async def cluster_values(self, registry: Any) -> ClusterValues:
+        raise RuntimeError("boom: data source unavailable")
 
 
 def _app(tmp_path: Path, token: str | None = None, **kwargs: Any) -> Any:
@@ -234,6 +240,40 @@ async def test_targets_gated_by_viewer_token(aiohttp_client: Any, tmp_path: Path
     client = await aiohttp_client(_app(tmp_path, token="secret"))
     assert (await client.get("/api/fleet/targets")).status == 401
     assert (await client.get("/api/fleet/targets?token=secret")).status == 200
+
+
+async def test_view_degrades_gracefully_when_source_fails(
+    aiohttp_client: Any, tmp_path: Path
+) -> None:
+    config = FleetConfig.resolve(
+        view_cache_ms=0, environ={"ARGUS_FLEET_STATE": str(tmp_path / "s.json")}
+    )
+    registry = Registry(config.state_path, config.heartbeat_interval, config.ttl_factor)
+    client = await aiohttp_client(build_fleet_app(config, registry, _RaisingSource()))
+    await client.post("/fleet/register", json={"identity": "a", "fleet": "asia"})
+    # The data source raises, but the view still serves registry topology, not 500.
+    resp = await client.get("/api/fleet/view")
+    assert resp.status == 200
+    body = await resp.json()
+    assert body["fleets"][0]["clusters_total"] == 1
+    assert body["fleets"][0]["clusters"][0]["metrics"]["guilds"] == 0.0
+
+
+async def test_identity_conflict_metric_present(aiohttp_client: Any, tmp_path: Path) -> None:
+    client = await aiohttp_client(_app(tmp_path))
+    await client.post("/fleet/register", json={"identity": "a", "fleet": "asia"})
+    body = await (await client.get("/metrics")).text()
+    assert "argus_fleet_identity_conflicts_total" in body
+
+
+async def test_load_many_clusters_view(aiohttp_client: Any, tmp_path: Path) -> None:
+    # A light load/scale check: many clusters register and the view rolls up.
+    client = await aiohttp_client(_app(tmp_path, register_burst=1000, max_clusters=1000))
+    for i in range(300):
+        resp = await client.post("/fleet/register", json={"identity": f"id{i}", "fleet": "asia"})
+        assert resp.status == 200
+    view = await (await client.get("/api/fleet/view")).json()
+    assert view["fleets"][0]["clusters_total"] == 300
 
 
 async def test_self_metrics_exposes_fleet_gauges(aiohttp_client: Any, tmp_path: Path) -> None:

@@ -25,6 +25,7 @@ samples to differentiate and are 0 in v1 - a documented limitation, not a TODO.
 
 from __future__ import annotations
 
+import math
 from typing import Any
 
 from argus.core.metrics import build_names
@@ -33,19 +34,44 @@ from argus.fleet.registry import Registry
 from argus.fleet.sources.base import ClusterValues, FleetDataSource
 
 
+def _num(value: Any) -> float | None:
+    """Coerce a snapshot value to float, or None if it is missing/non-numeric."""
+    try:
+        result = float(value)
+    except (TypeError, ValueError):
+        return None
+    return result if math.isfinite(result) else None
+
+
 def _samples(snapshot: dict[str, Any]) -> list[dict[str, Any]]:
+    # Defensive: a pushed snapshot is untrusted; tolerate any malformed shape.
     out: list[dict[str, Any]] = []
-    for family in snapshot.get("metrics", {}).values():
-        out.extend(family.get("samples", []))
+    metrics = snapshot.get("metrics")
+    if not isinstance(metrics, dict):
+        return out
+    for family in metrics.values():
+        if not isinstance(family, dict):
+            continue
+        samples = family.get("samples")
+        if isinstance(samples, list):
+            out.extend(s for s in samples if isinstance(s, dict))
     return out
 
 
 def _sum_by_name(samples: list[dict[str, Any]], name: str) -> float:
-    return sum(float(s["value"]) for s in samples if s.get("name") == name)
+    total = 0.0
+    for s in samples:
+        if s.get("name") == name:
+            value = _num(s.get("value"))
+            if value is not None:
+                total += value
+    return total
 
 
 def _max_by_name(samples: list[dict[str, Any]], name: str) -> float:
-    values = [float(s["value"]) for s in samples if s.get("name") == name]
+    values = [
+        v for s in samples if s.get("name") == name and (v := _num(s.get("value"))) is not None
+    ]
     return max(values) if values else 0.0
 
 
@@ -57,11 +83,13 @@ def _percentile_from_histogram(
     for s in samples:
         if s.get("name") != f"{family}_bucket":
             continue
-        raw = s.get("labels", {}).get("le")
-        if raw is None:
+        labels = s.get("labels")
+        raw = labels.get("le") if isinstance(labels, dict) else None
+        bound = float("inf") if raw in ("+Inf", "Inf") else _num(raw)
+        value = _num(s.get("value"))
+        if bound is None or value is None:
             continue
-        bound = float("inf") if raw in ("+Inf", "Inf") else float(raw)
-        buckets[bound] = buckets.get(bound, 0.0) + float(s["value"])
+        buckets[bound] = buckets.get(bound, 0.0) + value
     if not buckets:
         return 0.0
     ordered = sorted(buckets.items())
