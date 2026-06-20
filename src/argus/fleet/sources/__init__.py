@@ -20,6 +20,14 @@ from __future__ import annotations
 
 from argus.fleet.sources.base import ClusterValues, FleetDataSource, assemble
 from argus.fleet.sources.composite import CompositeSource
+from argus.fleet.sources.prometheus import PrometheusSource
 from argus.fleet.sources.push import PushSource
 
-__all__ = ["ClusterValues", "CompositeSource", "FleetDataSource", "PushSource", "assemble"]
+__all__ = [
+    "ClusterValues",
+    "CompositeSource",
+    "FleetDataSource",
+    "PrometheusSource",
+    "PushSource",
+    "assemble",
+]

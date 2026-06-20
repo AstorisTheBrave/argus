@@ -33,12 +33,18 @@ from argus.fleet.config import FleetConfig
 from argus.fleet.registry import Registry
 from argus.fleet.server import build_fleet_app
 from argus.fleet.sources.base import FleetDataSource
+from argus.fleet.sources.composite import CompositeSource
+from argus.fleet.sources.prometheus import PrometheusSource
 from argus.fleet.sources.push import PushSource
 
 
 def build_source(config: FleetConfig) -> FleetDataSource:
-    """Push only for now; the Prometheus value source is joined here in phase 5."""
-    return PushSource(config.namespace)
+    """Push only by default; Prometheus joined ahead of push when configured."""
+    push = PushSource(config.namespace)
+    if config.prometheus_url:
+        prom = PrometheusSource(config.prometheus_url, config.namespace)
+        return CompositeSource(prom, push)
+    return push
 
 
 async def _serve(config: FleetConfig) -> None:
