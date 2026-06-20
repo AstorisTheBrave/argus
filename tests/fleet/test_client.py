@@ -60,6 +60,23 @@ async def test_register_and_heartbeat_round_trip(aiohttp_server: Any, tmp_path: 
     await client.aclose()
 
 
+async def test_fail_open_on_broken_snapshot_provider(aiohttp_server: Any, tmp_path: Path) -> None:
+    registry = Registry(tmp_path / "server-state.json")
+    app = build_fleet_app(FleetConfig.resolve(environ={}), registry, PushSource())
+    server = await aiohttp_server(app)
+    url = str(server.make_url("")).rstrip("/")
+
+    def boom() -> dict[str, Any]:
+        raise ValueError("snapshot provider is broken")
+
+    client = FleetClient(_member_config(url, tmp_path), heartbeat_interval=0.01)
+    await client.start(boom)  # register still succeeds
+    await asyncio.sleep(0.05)  # several heartbeat ticks with a raising provider
+    # The bot is unaffected: registration landed and nothing propagated.
+    assert len(registry.entries()) == 1
+    await client.aclose()
+
+
 async def test_fail_open_when_fleet_unreachable(tmp_path: Path) -> None:
     # Nothing is listening on this port; start + heartbeat must not raise.
     cfg = _member_config("http://127.0.0.1:1", tmp_path)
