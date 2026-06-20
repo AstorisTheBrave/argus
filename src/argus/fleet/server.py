@@ -28,8 +28,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 from collections.abc import Awaitable, Callable
-from dataclasses import asdict
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from aiohttp import web
 from aiohttp.typedefs import Middleware
@@ -173,10 +172,30 @@ def build_fleet_app(
         registry.heartbeat(identity, snapshot if isinstance(snapshot, dict) else None)
         return web.Response(status=204)
 
+    # Short-TTL cache + single-flight: N concurrent viewers share one compute /
+    # Prometheus query batch instead of each triggering a full recompute.
+    ttl = config.view_cache_ms / 1000.0
+    cache_at = 0.0
+    cache_data: dict[str, Any] | None = None
+    view_lock = asyncio.Lock()
+
+    async def _cached_view() -> dict[str, Any]:
+        nonlocal cache_at, cache_data
+        loop = asyncio.get_running_loop()
+        if cache_data is not None and (loop.time() - cache_at) < ttl:
+            return cache_data
+        async with view_lock:
+            # Re-check: another waiter may have refreshed while we waited.
+            if cache_data is not None and (loop.time() - cache_at) < ttl:
+                return cache_data
+            registry.sweep()
+            view = await source.fleet_snapshot(registry)
+            cache_data = view.to_dict()
+            cache_at = loop.time()
+            return cache_data
+
     async def fleet_view(_request: web.Request) -> web.StreamResponse:
-        registry.sweep()
-        view = await source.fleet_snapshot(registry)
-        return web.json_response(view.to_dict())
+        return web.json_response(await _cached_view())
 
     async def cluster_view(request: web.Request) -> web.StreamResponse:
         fleet = request.query.get("fleet", "")
@@ -184,13 +203,14 @@ def build_fleet_app(
         if not fleet or not raw_number.isdigit():
             raise web.HTTPBadRequest(text="fleet and numeric number required\n")
         number = int(raw_number)
-        registry.sweep()
-        view = await source.fleet_snapshot(registry)
-        group = next((f for f in view.fleets if f.name == fleet), None)
-        cluster = next((c for c in group.clusters if c.number == number), None) if group else None
+        data = await _cached_view()
+        fleets: list[dict[str, Any]] = data.get("fleets", [])
+        group = next((f for f in fleets if f.get("name") == fleet), None)
+        clusters: list[dict[str, Any]] = group.get("clusters", []) if group else []
+        cluster = next((c for c in clusters if c.get("number") == number), None)
         if cluster is None:
             raise web.HTTPNotFound(text="cluster not found\n")
-        return web.json_response({"cluster": asdict(cluster), "history": []})
+        return web.json_response({"cluster": cluster, "history": []})
 
     async def index(_request: web.Request) -> web.StreamResponse:
         index_html = STATIC_DIR / "index.html"

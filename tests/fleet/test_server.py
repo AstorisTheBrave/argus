@@ -12,6 +12,9 @@ from argus.fleet.sources.push import PushSource
 
 
 def _app(tmp_path: Path, token: str | None = None, **kwargs: Any) -> Any:
+    # Disable the view cache by default so tests see fresh state deterministically;
+    # a dedicated test exercises the cache with a real TTL.
+    kwargs.setdefault("view_cache_ms", 0)
     config = FleetConfig.resolve(
         token=token,
         environ={"ARGUS_FLEET_STATE": str(tmp_path / "s.json")},
@@ -153,3 +156,15 @@ async def test_no_cors_headers_when_disabled(aiohttp_client: Any, tmp_path: Path
     client = await aiohttp_client(_app(tmp_path))
     resp = await client.get("/healthz", headers={"Origin": "https://ui.example"})
     assert "Access-Control-Allow-Origin" not in resp.headers
+
+
+async def test_view_is_cached_within_ttl(aiohttp_client: Any, tmp_path: Path) -> None:
+    # A long TTL: a cluster registered after the first view is not yet visible.
+    client = await aiohttp_client(_app(tmp_path, view_cache_ms=60000))
+    await client.post("/fleet/register", json={"identity": "a", "fleet": "asia"})
+    first = await (await client.get("/api/fleet/view")).json()
+    assert first["fleets"][0]["clusters_total"] == 1
+    await client.post("/fleet/register", json={"identity": "b", "fleet": "asia"})
+    cached = await (await client.get("/api/fleet/view")).json()
+    # Served from cache: the second cluster is not reflected until the TTL lapses.
+    assert cached["fleets"][0]["clusters_total"] == 1
