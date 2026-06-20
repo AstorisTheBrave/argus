@@ -54,6 +54,9 @@ class ClusterEntry:
     status: str = STATUS_UP
     version: str = ""
     last_snapshot: dict[str, Any] | None = None
+    # Optional reachable "host:port" the member advertises for Prometheus
+    # service discovery; empty when the member does not opt in.
+    scrape_target: str = ""
 
 
 class Registry:
@@ -92,13 +95,18 @@ class Registry:
     # -- mutation ---------------------------------------------------------
 
     def register(
-        self, identity: str, fleet: str, version: str = "", now: float | None = None
+        self,
+        identity: str,
+        fleet: str,
+        version: str = "",
+        now: float | None = None,
+        scrape_target: str = "",
     ) -> int:
         """Register ``identity`` in ``fleet`` and return its stable number.
 
         A known identity reclaims its existing number (and refreshes its fleet,
-        version, and last_seen). A new identity gets ``counter[fleet] + 1``;
-        numbers are monotonic per fleet and never reused.
+        version, last_seen, and scrape target). A new identity gets
+        ``counter[fleet] + 1``; numbers are monotonic per fleet and never reused.
         """
         stamp = time.time() if now is None else now
         existing = self._entries.get(identity)
@@ -107,6 +115,8 @@ class Registry:
             existing.version = version
             existing.last_seen = stamp
             existing.status = STATUS_UP
+            if scrape_target:
+                existing.scrape_target = scrape_target
             self._dirty = True
             return existing.number
 
@@ -120,6 +130,7 @@ class Registry:
             last_seen=stamp,
             status=STATUS_UP,
             version=version,
+            scrape_target=scrape_target,
         )
         self._dirty = True
         return number
