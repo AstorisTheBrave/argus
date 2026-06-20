@@ -28,7 +28,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
-from prometheus_client import CollectorRegistry, Counter
+from prometheus_client import CollectorRegistry, Counter, Histogram
 from prometheus_client.core import GaugeMetricFamily
 
 from argus.fleet.registry import STATUS_UP
@@ -69,7 +69,13 @@ class _LiveCollector:
 class FleetMetrics:
     """The control plane's own metric registry: live gauges + event counters."""
 
-    __slots__ = ("heartbeats", "identity_conflicts", "registrations", "registry")
+    __slots__ = (
+        "heartbeats",
+        "identity_conflicts",
+        "registrations",
+        "registry",
+        "view_build_seconds",
+    )
 
     def __init__(self, registry: Registry) -> None:
         self.registry = CollectorRegistry()
@@ -86,6 +92,11 @@ class FleetMetrics:
         self.identity_conflicts = Counter(
             "argus_fleet_identity_conflicts_total",
             "Times an identity was seen from a new remote (duplicate CLUSTER_ID/fleet_id).",
+            registry=self.registry,
+        )
+        self.view_build_seconds = Histogram(
+            "argus_fleet_view_build_seconds",
+            "Time to build a fleet view (source query + assemble).",
             registry=self.registry,
         )
         self.registry.register(_LiveCollector(registry))

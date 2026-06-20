@@ -98,6 +98,9 @@ class FleetConfig:
     register_burst: int = DEFAULT_REGISTER_BURST
     heartbeat_burst: int = DEFAULT_HEARTBEAT_BURST
     retention_days: int = DEFAULT_RETENTION_DAYS
+    # Trust X-Forwarded-For (only when behind a known reverse proxy) so rate
+    # limits and conflict detection key on the real client IP, not the proxy's.
+    trusted_proxy: bool = False
 
     @classmethod
     def resolve(
@@ -121,6 +124,7 @@ class FleetConfig:
         register_burst: int | None = None,
         heartbeat_burst: int | None = None,
         retention_days: int | None = None,
+        trusted_proxy: bool | None = None,
         environ: dict[str, str] | None = None,
     ) -> FleetConfig:
         """Build a config from kwargs, falling back to env, then defaults.
@@ -179,6 +183,9 @@ class FleetConfig:
             ),
             retention_days=cls._pick_int(
                 retention_days, env.get("ARGUS_FLEET_RETENTION_DAYS"), DEFAULT_RETENTION_DAYS
+            ),
+            trusted_proxy=cls._pick_bool(
+                trusted_proxy, env.get("ARGUS_FLEET_TRUSTED_PROXY"), False
             ),
         )
 
