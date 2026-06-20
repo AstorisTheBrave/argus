@@ -32,10 +32,12 @@ from typing import TYPE_CHECKING, Any
 
 from aiohttp import web
 from aiohttp.typedefs import Middleware
+from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 
 from argus import __version__
 from argus.dashboard.auth import make_auth_middleware
 from argus.dashboard.server import STATIC_DIR
+from argus.fleet.metrics import FleetMetrics
 
 if TYPE_CHECKING:
     from argus.fleet.config import FleetConfig
@@ -135,12 +137,19 @@ def build_fleet_app(
     middlewares.append(make_auth_middleware(config.token, frozenset({"/healthz", "/readyz"})))
     app = web.Application(middlewares=middlewares, client_max_size=config.max_body_bytes)
     app.on_response_prepare.append(_harden_response)
+    metrics = FleetMetrics(registry)
 
     async def health(_request: web.Request) -> web.StreamResponse:
         return web.Response(text="ok\n")
 
     async def ready(_request: web.Request) -> web.StreamResponse:
         return web.Response(text="ready\n")
+
+    async def self_metrics(_request: web.Request) -> web.StreamResponse:
+        return web.Response(
+            body=generate_latest(metrics.registry),
+            headers={"Content-Type": CONTENT_TYPE_LATEST},
+        )
 
     async def api_config(_request: web.Request) -> web.StreamResponse:
         return web.json_response(
@@ -161,6 +170,7 @@ def build_fleet_app(
         fleet = str(body.get("fleet") or "default")
         version = str(body.get("version") or "")
         number = registry.register(identity, fleet, version)
+        metrics.registrations.inc()
         return web.json_response({"number": number})
 
     async def heartbeat(request: web.Request) -> web.StreamResponse:
@@ -170,6 +180,7 @@ def build_fleet_app(
             raise web.HTTPBadRequest(text="identity required\n")
         snapshot = body.get("snapshot")
         registry.heartbeat(identity, snapshot if isinstance(snapshot, dict) else None)
+        metrics.heartbeats.inc()
         return web.Response(status=204)
 
     # Short-TTL cache + single-flight: N concurrent viewers share one compute /
@@ -245,6 +256,7 @@ def build_fleet_app(
 
     app.router.add_get("/healthz", health)
     app.router.add_get("/readyz", ready)
+    app.router.add_get("/metrics", self_metrics)
     app.router.add_get("/api/config", api_config)
     app.router.add_post("/fleet/register", register)
     app.router.add_post("/fleet/heartbeat", heartbeat)

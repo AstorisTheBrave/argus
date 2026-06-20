@@ -158,6 +158,23 @@ async def test_no_cors_headers_when_disabled(aiohttp_client: Any, tmp_path: Path
     assert "Access-Control-Allow-Origin" not in resp.headers
 
 
+async def test_self_metrics_exposes_fleet_gauges(aiohttp_client: Any, tmp_path: Path) -> None:
+    client = await aiohttp_client(_app(tmp_path))
+    await client.post("/fleet/register", json={"identity": "a", "fleet": "asia"})
+    await client.post("/fleet/heartbeat", json={"identity": "a"})
+    body = await (await client.get("/metrics")).text()
+    assert "argus_fleet_registrations_total" in body
+    assert "argus_fleet_heartbeats_total" in body
+    assert 'argus_fleet_clusters{fleet="asia",status="up"}' in body
+    assert "argus_fleet_registry_entries" in body
+
+
+async def test_self_metrics_gated_by_token(aiohttp_client: Any, tmp_path: Path) -> None:
+    client = await aiohttp_client(_app(tmp_path, token="secret"))
+    assert (await client.get("/metrics")).status == 401
+    assert (await client.get("/metrics?token=secret")).status == 200
+
+
 async def test_view_is_cached_within_ttl(aiohttp_client: Any, tmp_path: Path) -> None:
     # A long TTL: a cluster registered after the first view is not yet visible.
     client = await aiohttp_client(_app(tmp_path, view_cache_ms=60000))
