@@ -7,7 +7,7 @@ from typing import Any
 
 from argus.fleet.config import FleetConfig
 from argus.fleet.registry import Registry
-from argus.fleet.server import build_fleet_app
+from argus.fleet.server import _clean_for_log, build_fleet_app
 from argus.fleet.sources.base import ClusterValues, FleetDataSource
 from argus.fleet.sources.push import PushSource
 
@@ -257,6 +257,13 @@ async def test_view_degrades_gracefully_when_source_fails(
     body = await resp.json()
     assert body["fleets"][0]["clusters_total"] == 1
     assert body["fleets"][0]["clusters"][0]["metrics"]["guilds"] == 0.0
+
+
+def test_clean_for_log_strips_newlines_and_truncates() -> None:
+    # Untrusted values must not be able to forge log lines (CodeQL log-injection).
+    assert _clean_for_log("a\r\nINJECTED") == "aINJECTED"
+    assert _clean_for_log(None) == "?"
+    assert len(_clean_for_log("x" * 500)) == 128
 
 
 async def test_identity_conflict_metric_present(aiohttp_client: Any, tmp_path: Path) -> None:

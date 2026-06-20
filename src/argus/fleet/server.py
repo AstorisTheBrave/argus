@@ -67,6 +67,13 @@ def _extract_token(request: web.Request) -> str | None:
     return request.query.get("token")
 
 
+def _clean_for_log(value: str | None) -> str:
+    """Strip CR/LF and truncate so untrusted values cannot forge log lines."""
+    if not value:
+        return "?"
+    return value.replace("\r", "").replace("\n", "")[:128]
+
+
 def _make_fleet_auth_middleware(ingest_token: str | None, viewer_token: str | None) -> Middleware:
     """Path-aware auth: ingest paths need the ingest token, the rest the viewer.
 
@@ -197,9 +204,9 @@ def build_fleet_app(
         if identity_watch.observe(identity, request.remote):
             metrics.identity_conflicts.inc()
             log.warning(
-                "identity %r seen from a new remote %s; duplicate CLUSTER_ID/fleet_id?",
-                identity,
-                request.remote,
+                "identity %s seen from a new remote %s; duplicate CLUSTER_ID/fleet_id?",
+                _clean_for_log(identity),
+                _clean_for_log(request.remote),
             )
 
     async def health(_request: web.Request) -> web.StreamResponse:
