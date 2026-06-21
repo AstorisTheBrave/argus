@@ -78,6 +78,7 @@ class MetricNames:
     log_records_total: str
     ratelimits_total: str
     instrumentation_errors_total: str
+    history_events_dropped_total: str
     # histograms
     app_command_duration_seconds: str
     command_duration_seconds: str
@@ -112,6 +113,7 @@ def build_names(namespace: str) -> MetricNames:
         log_records_total=f"{ns}_log_records_total",
         ratelimits_total=f"{ns}_ratelimits_total",
         instrumentation_errors_total="argus_instrumentation_errors_total",
+        history_events_dropped_total="argus_history_events_dropped_total",
         app_command_duration_seconds=f"{ns}_app_command_duration_seconds",
         command_duration_seconds=f"{ns}_command_duration_seconds",
     )
@@ -402,6 +404,14 @@ def define_metrics(
             "Total instrumentation hook failures (swallowed, never raised).",
             MetricKind.COUNTER,
             labelnames=("hook", "cluster"),
+        )
+    )
+    registry.define(
+        MetricDef(
+            names.history_events_dropped_total,
+            "Total per-guild analytical events dropped because the sink queue was full.",
+            MetricKind.COUNTER,
+            labelnames=("cluster",),
         )
     )
 

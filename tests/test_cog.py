@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any
 
 import aiohttp
+import pytest
 from prometheus_client import generate_latest
 
 from argus import Argus, ArgusCog
@@ -14,6 +15,7 @@ from argus.fleet.config import FleetConfig
 from argus.fleet.registry import Registry
 from argus.fleet.server import build_fleet_app
 from argus.fleet.sources.push import PushSource
+from argus.history.sink import BatchingSink
 from tests.conftest import FakeBot
 
 _LISTENER_NAMES = {
@@ -178,6 +180,27 @@ async def test_dashboard_on_loopback_does_not_warn(free_port: int, caplog: Any) 
         assert not any("without an auth token" in r.message for r in caplog.records)
     finally:
         await cog.cog_unload()
+
+
+def test_argus_applied_twice_raises() -> None:
+    bot = FakeBot()
+    Argus(bot)
+    with pytest.raises(RuntimeError, match="already been applied"):
+        Argus(bot)
+
+
+def test_clickhouse_sink_has_drop_hook_wired() -> None:
+    cog = ArgusCog(
+        FakeBot(),
+        ArgusConfig.resolve(
+            enable_per_guild=True,
+            clickhouse_dsn="http://ch:8123",
+            dashboard=False,
+            environ={},
+        ),
+    )
+    assert isinstance(cog.sink, BatchingSink)
+    assert cog.sink._on_drop is not None  # cog wired the drop counter
 
 
 async def test_dashboard_can_be_disabled(free_port: int) -> None:

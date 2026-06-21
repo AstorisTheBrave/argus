@@ -38,6 +38,7 @@ EXPECTED: dict[str, tuple[MetricKind, tuple[str, ...]]] = {
     "discord_log_records_total": (MetricKind.COUNTER, ("logger", "level", "cluster")),
     "discord_ratelimits_total": (MetricKind.COUNTER, ("cluster",)),
     "argus_instrumentation_errors_total": (MetricKind.COUNTER, ("hook", "cluster")),
+    "argus_history_events_dropped_total": (MetricKind.COUNTER, ("cluster",)),
     "discord_app_command_duration_seconds": (MetricKind.HISTOGRAM, ("command", "cluster")),
     "discord_command_duration_seconds": (MetricKind.HISTOGRAM, ("command", "cluster")),
 }

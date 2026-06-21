@@ -24,9 +24,10 @@ events are dropped and counted rather than blocking the bot.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
 from abc import ABC, abstractmethod
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from typing import Any
 
 log = logging.getLogger("argus")
@@ -62,6 +63,7 @@ class BatchingSink(EventSink):
         batch_size: int = 100,
         flush_interval: float = 5.0,
         max_queue: int = 10_000,
+        on_drop: Callable[[], None] | None = None,
     ) -> None:
         self._queue: asyncio.Queue[Event] = asyncio.Queue(maxsize=max_queue)
         self._batch_size = batch_size
@@ -69,7 +71,12 @@ class BatchingSink(EventSink):
         self._task: asyncio.Task[None] | None = None
         self._wake = asyncio.Event()
         self._closed = False
+        self._on_drop = on_drop
         self.dropped = 0
+
+    def set_drop_hook(self, on_drop: Callable[[], None]) -> None:
+        """Route a dropped event to a counter (wired by the cog)."""
+        self._on_drop = on_drop
 
     async def record(self, event: Event) -> None:
         if self._closed:
@@ -78,6 +85,9 @@ class BatchingSink(EventSink):
             self._queue.put_nowait(event)
         except asyncio.QueueFull:
             self.dropped += 1
+            if self._on_drop is not None:
+                with contextlib.suppress(Exception):
+                    self._on_drop()
             return
         if self._task is None:
             self._task = asyncio.create_task(self._run())
@@ -87,13 +97,24 @@ class BatchingSink(EventSink):
         """Write a batch of events to the backing store."""
 
     async def _run(self) -> None:
+        # The worker must outlive any single transient failure: a raised
+        # collection or flush is logged and the loop continues, so one bad batch
+        # cannot silently kill the drain and turn every later event into a drop.
         while not (self._closed and self._queue.empty()):
-            batch = await self._collect_batch()
+            try:
+                batch = await self._collect_batch()
+            except asyncio.CancelledError:
+                raise
+            except Exception:  # pragma: no cover - defensive
+                log.exception("argus history batch collection failed")
+                continue
             if not batch:
                 continue
             try:
                 await self._flush(batch)
-            except Exception:  # pragma: no cover - a sink failure must not kill the worker
+            except asyncio.CancelledError:
+                raise
+            except Exception:  # a sink failure must not kill the worker
                 log.exception("argus history flush failed (%d events dropped)", len(batch))
 
     async def _collect_batch(self) -> list[Event]:

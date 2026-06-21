@@ -83,6 +83,11 @@ class Instrumentation:
         """Public hook to record an instrumentation error (e.g. scrape-time isolation)."""
         self._count_error(hook)
 
+    def count_dropped(self) -> None:
+        """Public hook to record one dropped analytical event (sink overflow)."""
+        with contextlib.suppress(Exception):  # pragma: no cover - the counter itself failed
+            self._registry.inc(self._n.history_events_dropped_total, self._labels())
+
     def _safe(self, hook: str, fn: Callable[..., None], *args: Any) -> None:
         try:
             fn(*args)

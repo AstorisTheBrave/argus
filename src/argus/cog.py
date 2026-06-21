@@ -40,7 +40,7 @@ from argus.core.health import HealthState
 from argus.core.hooks import Registration, register
 from argus.core.instrumentation import Instrumentation
 from argus.core.metrics import bot_info_values, define_metrics
-from argus.history.sink import EventSink, NullSink
+from argus.history.sink import BatchingSink, EventSink, NullSink
 
 log = logging.getLogger("argus")
 
@@ -69,6 +69,9 @@ class ArgusCog(commands.Cog):
         )
         # Isolate scrape-time gauge failures into the error counter (invariant 5).
         self.adapter.set_scrape_error_hook(self.instrumentation.count_error)
+        # Surface sink overflow as a counter rather than a hidden attribute.
+        if isinstance(self.sink, BatchingSink):
+            self.sink.set_drop_hook(self.instrumentation.count_dropped)
         self.registry.set_info(self.names.bot_info, bot_info_values())
         self._runner: Any = None
         self._analytics_client: Any = None
@@ -216,6 +219,15 @@ class Argus:
     """
 
     def __init__(self, bot: Any, **kwargs: Any) -> None:
+        # Guard against a double application: a second Argus(bot) would register
+        # duplicate listeners and chain setup_hook twice, double-counting every
+        # event. This is always a mistake, and it happens before the bot runs, so
+        # fail fast with a clear message rather than silently corrupt the metrics.
+        if getattr(bot, "_argus_attached", False):
+            raise RuntimeError(
+                "Argus(bot) has already been applied to this bot; remove the duplicate call"
+            )
+        bot._argus_attached = True
         self.config = ArgusConfig.resolve(**kwargs)
         self.cog = ArgusCog(bot, self.config)
 
