@@ -78,6 +78,7 @@ class MetricNames:
     instrumentation_errors_total: str
     # histograms
     app_command_duration_seconds: str
+    command_duration_seconds: str
 
 
 def build_names(namespace: str) -> MetricNames:
@@ -109,6 +110,7 @@ def build_names(namespace: str) -> MetricNames:
         ratelimits_total=f"{ns}_ratelimits_total",
         instrumentation_errors_total="argus_instrumentation_errors_total",
         app_command_duration_seconds=f"{ns}_app_command_duration_seconds",
+        command_duration_seconds=f"{ns}_command_duration_seconds",
     )
 
 
@@ -375,6 +377,15 @@ def define_metrics(registry: MetricRegistry, bot: Any, config: ArgusConfig) -> M
         MetricDef(
             names.app_command_duration_seconds,
             "Application command duration in seconds (interaction receipt to completion).",
+            MetricKind.HISTOGRAM,
+            labelnames=("command", "cluster"),
+            buckets=DURATION_BUCKETS,
+        )
+    )
+    registry.define(
+        MetricDef(
+            names.command_duration_seconds,
+            "Prefix command duration in seconds (invocation to completion).",
             MetricKind.HISTOGRAM,
             labelnames=("command", "cluster"),
             buckets=DURATION_BUCKETS,

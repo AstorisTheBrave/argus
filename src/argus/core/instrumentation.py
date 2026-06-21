@@ -68,6 +68,7 @@ class Instrumentation:
         self._per_guild = config.enable_per_guild
         self._cluster = config.cluster_id or "default"
         self._starts: OrderedDict[int, float] = OrderedDict()
+        self._command_starts: OrderedDict[int, float] = OrderedDict()
 
     def _labels(self, **labels: str) -> dict[str, str]:
         labels["cluster"] = self._cluster
@@ -105,6 +106,30 @@ class Instrumentation:
             return seconds if seconds >= 0 else None
         return None
 
+    # Prefix commands time invocation (on_command) to completion, keyed by the
+    # invoking message id, with the same bounded-map + timestamp-fallback pattern.
+    def _command_message_id(self, ctx: Any) -> int | None:
+        return getattr(getattr(ctx, "message", None), "id", None)
+
+    def _start_command_timer(self, ctx: Any) -> None:
+        mid = self._command_message_id(ctx)
+        if mid is None:
+            return
+        self._command_starts[mid] = time.monotonic()
+        if len(self._command_starts) > _MAX_PENDING:
+            self._command_starts.popitem(last=False)
+
+    def _take_command_duration(self, ctx: Any) -> float | None:
+        mid = self._command_message_id(ctx)
+        start = self._command_starts.pop(mid, None) if mid is not None else None
+        if start is not None:
+            return max(0.0, time.monotonic() - start)
+        created = getattr(getattr(ctx, "message", None), "created_at", None)
+        if created is not None:
+            seconds = (datetime.now(timezone.utc) - created).total_seconds()
+            return seconds if seconds >= 0 else None
+        return None
+
     # --- listener coroutines (what discord.py dispatches to) ---
     async def on_interaction(self, interaction: Any) -> None:
         self._safe("on_interaction", self._interaction, interaction)
@@ -124,6 +149,9 @@ class Instrumentation:
             duration,
         )
         await self._emit_app_command(interaction, command, duration)
+
+    async def on_command(self, ctx: Any) -> None:
+        self._safe("on_command", self._command_start, ctx)
 
     async def on_command_completion(self, ctx: Any) -> None:
         self._safe("on_command_completion", self._command_completion, ctx)
@@ -216,12 +244,21 @@ class Instrumentation:
             self._labels(command=name, error_type=type(error).__name__),
         )
 
+    def _command_start(self, ctx: Any) -> None:
+        self._start_command_timer(ctx)
+
     def _command_completion(self, ctx: Any) -> None:
         name = _qualified_name(getattr(ctx, "command", None))
         self._registry.inc(self._n.commands_total, self._labels(command=name, status="success"))
+        duration = self._take_command_duration(ctx)
+        if duration is not None:
+            self._registry.observe(
+                self._n.command_duration_seconds, duration, self._labels(command=name)
+            )
 
     def _command_error(self, ctx: Any, error: BaseException) -> None:
         name = _qualified_name(getattr(ctx, "command", None))
+        self._take_command_duration(ctx)  # drop any pending timer for this invocation
         self._registry.inc(self._n.commands_total, self._labels(command=name, status="error"))
         self._registry.inc(
             self._n.command_errors_total,
