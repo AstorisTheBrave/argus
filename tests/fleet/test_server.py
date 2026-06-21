@@ -312,6 +312,24 @@ async def test_heartbeat_rate_limited(aiohttp_client: Any, tmp_path: Path) -> No
     assert statuses[2] == 429
 
 
+async def test_read_endpoints_rate_limited(aiohttp_client: Any, tmp_path: Path) -> None:
+    client = await aiohttp_client(_app(tmp_path, read_burst=2))
+    statuses = [(await client.get("/api/fleet/view")).status for _ in range(3)]
+    assert statuses[:2] == [200, 200]
+    assert statuses[2] == 429
+    # Health stays exempt from the read limit.
+    assert (await client.get("/healthz")).status == 200
+
+
+async def test_audit_log_records_register(aiohttp_client: Any, tmp_path: Path, caplog: Any) -> None:
+    import logging
+
+    client = await aiohttp_client(_app(tmp_path, audit_log=True))
+    with caplog.at_level(logging.INFO, logger="argus.fleet"):
+        await client.post("/fleet/register", json={"identity": "a", "fleet": "asia"})
+    assert any("audit register" in r.message and "outcome=ok" in r.message for r in caplog.records)
+
+
 async def test_heartbeat_requires_identity(aiohttp_client: Any, tmp_path: Path) -> None:
     client = await aiohttp_client(_app(tmp_path))
     assert (await client.post("/fleet/heartbeat", json={})).status == 400
