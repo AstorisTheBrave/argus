@@ -28,11 +28,14 @@ meter) work without the optional dependency installed.
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Callable, Mapping
 from typing import Any
 
 from argus.adapters.base import Adapter
 from argus.core.collector import MetricDef, MetricKind
+
+log = logging.getLogger("argus")
 
 # (value, attributes) observation. Falls back to this when opentelemetry is not
 # importable (e.g. under test); otherwise the real otel Observation is used.
@@ -114,9 +117,16 @@ class OTLPAdapter(Adapter):
         def callback(_options: Any) -> list[Any]:
             if source is None:
                 return []
+            try:
+                samples = list(source())
+            except Exception:
+                # Isolate a fragile gauge: skip it at export rather than break
+                # the whole OTLP collection (invariant 5).
+                log.exception("argus otlp gauge %r failed at export; skipping it", metric.name)
+                return []
             return [
                 self._observation(sample.value, dict(zip(labelnames, sample.labels, strict=False)))
-                for sample in source()
+                for sample in samples
             ]
 
         return callback

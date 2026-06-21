@@ -79,6 +79,10 @@ class Instrumentation:
         with contextlib.suppress(Exception):  # pragma: no cover - the counter itself failed
             self._registry.inc(self._n.instrumentation_errors_total, self._labels(hook=hook))
 
+    def count_error(self, hook: str) -> None:
+        """Public hook to record an instrumentation error (e.g. scrape-time isolation)."""
+        self._count_error(hook)
+
     def _safe(self, hook: str, fn: Callable[..., None], *args: Any) -> None:
         try:
             fn(*args)

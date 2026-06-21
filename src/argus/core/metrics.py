@@ -37,6 +37,7 @@ from argus.core.collector import GaugeSample, MetricDef, MetricKind, MetricRegis
 
 if TYPE_CHECKING:
     from argus.config import ArgusConfig
+    from argus.core.health import HealthState
 
 # Duration buckets suited to Discord command flows: deferral, follow-ups, slow
 # handlers. +Inf is appended by the backend.
@@ -65,6 +66,7 @@ class MetricNames:
     uptime_seconds: str
     bot_info: str
     argus_up: str
+    argus_subsystem_up: str
     # event-driven counters
     interactions_total: str
     app_commands_total: str
@@ -99,6 +101,7 @@ def build_names(namespace: str) -> MetricNames:
         uptime_seconds=f"{ns}_uptime_seconds",
         bot_info=f"{ns}_bot",  # backend appends `_info` -> discord_bot_info
         argus_up="argus_up",
+        argus_subsystem_up="argus_subsystem_up",
         interactions_total=f"{ns}_interactions_total",
         app_commands_total=f"{ns}_app_commands_total",
         commands_total=f"{ns}_commands_total",
@@ -119,8 +122,18 @@ def _count(obj: Any, attr: str) -> float:
     return float(len(getattr(obj, attr, []) or []))
 
 
-def define_metrics(registry: MetricRegistry, bot: Any, config: ArgusConfig) -> MetricNames:
-    """Define every metric into ``registry``; return the resolved names."""
+def define_metrics(
+    registry: MetricRegistry,
+    bot: Any,
+    config: ArgusConfig,
+    health: HealthState | None = None,
+) -> MetricNames:
+    """Define every metric into ``registry``; return the resolved names.
+
+    When ``health`` is provided, the ``argus_subsystem_up`` gauge is defined and
+    reads it live at scrape time, so operators can alert on Argus' own subsystems
+    degrading independently of the bot.
+    """
     names = build_names(config.namespace)
     cluster = config.cluster_id or "default"
     started = time.monotonic()
@@ -282,6 +295,26 @@ def define_metrics(registry: MetricRegistry, bot: Any, config: ArgusConfig) -> M
             callback=lambda: [GaugeSample((), 1.0)],
         )
     )
+    if health is not None:
+
+        def subsystem_up() -> list[GaugeSample]:
+            out = [GaugeSample(("server",), 1.0 if health.server_up else 0.0)]
+            if health.fleet_enabled:
+                out.append(GaugeSample(("fleet",), 1.0 if health.fleet_up else 0.0))
+            if health.sink_enabled:
+                out.append(GaugeSample(("sink",), 1.0 if health.sink_up else 0.0))
+            return out
+
+        registry.define(
+            MetricDef(
+                names.argus_subsystem_up,
+                "1 if the named Argus subsystem is healthy, else 0 "
+                "(only configured subsystems are reported).",
+                MetricKind.GAUGE,
+                labelnames=("subsystem",),
+                callback=subsystem_up,
+            )
+        )
     registry.define(
         MetricDef(
             names.bot_info,
