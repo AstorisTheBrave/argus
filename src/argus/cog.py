@@ -36,6 +36,7 @@ from discord.ext import commands
 from argus.adapters.prometheus import PrometheusAdapter
 from argus.config import ArgusConfig
 from argus.core.collector import MetricRegistry
+from argus.core.health import HealthState
 from argus.core.hooks import Registration, register
 from argus.core.instrumentation import Instrumentation
 from argus.core.metrics import bot_info_values, define_metrics
@@ -50,8 +51,12 @@ class ArgusCog(commands.Cog):
     def __init__(self, bot: Any, config: ArgusConfig | None = None) -> None:
         self.bot = bot
         self.config = config if config is not None else ArgusConfig.resolve()
+        self.health = HealthState(
+            fleet_enabled=bool(self.config.fleet_url),
+            sink_enabled=bool(self.config.enable_per_guild and self.config.clickhouse_dsn),
+        )
         self.registry = MetricRegistry()
-        self.names = define_metrics(self.registry, bot, self.config)
+        self.names = define_metrics(self.registry, bot, self.config, health=self.health)
         self.adapter = PrometheusAdapter()
         self.registry.attach(self.adapter)
         if self.config.otlp_endpoint:
@@ -62,6 +67,8 @@ class ArgusCog(commands.Cog):
         self.instrumentation = Instrumentation(
             self.registry, self.names, self.config, sink=self.sink
         )
+        # Isolate scrape-time gauge failures into the error counter (invariant 5).
+        self.adapter.set_scrape_error_hook(self.instrumentation.count_error)
         self.registry.set_info(self.names.bot_info, bot_info_values())
         self._runner: Any = None
         self._analytics_client: Any = None
@@ -91,6 +98,25 @@ class ArgusCog(commands.Cog):
         return AnalyticsQuery(self._analytics_client)
 
     async def cog_load(self) -> None:
+        # Fail open (invariant 5): a metrics server that cannot bind (port in
+        # use, bad host) must never crash the bot. Swallow, count, mark degraded,
+        # and let the bot run without Argus metrics until restart.
+        try:
+            await self._start_exposition()
+            self.health.server_up = True
+        except Exception:
+            self.health.server_up = False
+            self.instrumentation.count_error("cog_load")
+            log.exception(
+                "argus could not start its metrics server on %s:%d; the bot is "
+                "unaffected and will run without Argus metrics until restart "
+                "(check the port is free and the bind host is valid)",
+                self.config.host,
+                self.config.port,
+            )
+        await self._start_fleet_client()
+
+    async def _start_exposition(self) -> None:
         from argus import __version__
         from argus.dashboard.auth import make_auth_middleware
         from argus.dashboard.server import register_dashboard
@@ -127,7 +153,6 @@ class ArgusCog(commands.Cog):
             self.config.port,
             self.config.metrics_path,
         )
-        await self._start_fleet_client()
 
     async def _start_fleet_client(self) -> None:
         """Start the opt-in fleet client (fail-open; no-op unless fleet_url set)."""
@@ -140,8 +165,10 @@ class ArgusCog(commands.Cog):
             client = FleetClient(self.config)
             await client.start(lambda: build_snapshot(self.adapter.registry))
             self._fleet_client = client
+            self.health.fleet_up = True
             log.info("argus fleet client reporting to %s", self.config.fleet_url)
         except Exception:  # never let fleet wiring break the bot (invariant 5)
+            self.health.fleet_up = False
             log.debug("argus fleet client failed to start", exc_info=True)
             self._fleet_client = None
 
@@ -150,9 +177,11 @@ class ArgusCog(commands.Cog):
         if self._fleet_client is not None:
             await self._fleet_client.aclose()
             self._fleet_client = None
+        self.health.fleet_up = False
         if self._runner is not None:
             await self._runner.cleanup()
             self._runner = None
+        self.health.server_up = False
         await self.sink.aclose()
         if self._analytics_client is not None:
             await self._analytics_client.close()

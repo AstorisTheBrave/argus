@@ -6,7 +6,8 @@ from prometheus_client import generate_latest
 
 from argus.adapters.prometheus import PrometheusAdapter
 from argus.config import ArgusConfig
-from argus.core.collector import MetricRegistry
+from argus.core.collector import GaugeSample, MetricDef, MetricKind, MetricRegistry
+from argus.core.health import HealthState
 from argus.core.metrics import define_metrics
 from tests.conftest import FakeBot
 
@@ -62,3 +63,39 @@ def test_no_forbidden_label_in_exposition() -> None:
     text, _ = _exposition()
     for forbidden in ("guild_id", "user_id", "channel_id"):
         assert forbidden not in text
+
+
+def test_scrape_isolates_a_failing_gauge() -> None:
+    # One raising gauge callback must not fail the whole scrape (invariant 5).
+    registry = MetricRegistry()
+    adapter = PrometheusAdapter()
+    registry.attach(adapter)
+    errors: list[str] = []
+    adapter.set_scrape_error_hook(errors.append)
+
+    def boom() -> list[GaugeSample]:
+        raise RuntimeError("gauge exploded")
+
+    registry.define(
+        MetricDef("ok_gauge", "fine", MetricKind.GAUGE, callback=lambda: [GaugeSample((), 7.0)])
+    )
+    registry.define(MetricDef("bad_gauge", "broken", MetricKind.GAUGE, callback=boom))
+
+    text = generate_latest(adapter.registry).decode()
+    assert "ok_gauge 7.0" in text  # healthy gauge still served
+    assert errors == ["scrape:bad_gauge"]  # failure isolated and reported
+
+
+def test_subsystem_up_reflects_health() -> None:
+    bot = FakeBot()
+    config = ArgusConfig.resolve(environ={})
+    registry = MetricRegistry()
+    health = HealthState(server_up=True, fleet_enabled=True, fleet_up=False)
+    define_metrics(registry, bot, config, health=health)
+    adapter = PrometheusAdapter()
+    registry.attach(adapter)
+
+    text = generate_latest(adapter.registry).decode()
+    assert 'argus_subsystem_up{subsystem="server"} 1.0' in text
+    assert 'argus_subsystem_up{subsystem="fleet"} 0.0' in text
+    assert 'subsystem="sink"' not in text  # not enabled -> not reported

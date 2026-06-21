@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any
 
 import aiohttp
+from prometheus_client import generate_latest
 
 from argus import Argus, ArgusCog
 from argus.config import ArgusConfig
@@ -117,6 +118,42 @@ async def test_cog_registers_with_fleet_when_configured(
     finally:
         await cog.cog_unload()
         assert cog._fleet_client is None
+
+
+async def test_cog_load_is_fail_open_when_server_cannot_bind(
+    free_port: int, monkeypatch: Any
+) -> None:
+    # A metrics server that cannot start must never crash the bot (invariant 5).
+    import argus.exposition.server as exposition
+
+    async def boom(*_args: Any, **_kwargs: Any) -> None:
+        raise OSError("address already in use")
+
+    monkeypatch.setattr(exposition, "start_server", boom)
+
+    bot = FakeBot()
+    cog = ArgusCog(bot, ArgusConfig.resolve(host="127.0.0.1", port=free_port, environ={}))
+    await cog.cog_load()  # must not raise
+
+    assert cog.health.server_up is False
+    assert cog._runner is None
+    text = generate_latest(cog.adapter.registry).decode()
+    assert 'hook="cog_load"' in text  # the failure was counted
+    assert 'argus_subsystem_up{subsystem="server"} 0.0' in text
+    await cog.cog_unload()
+
+
+async def test_cog_load_marks_server_healthy(free_port: int) -> None:
+    cog = ArgusCog(FakeBot(), ArgusConfig.resolve(host="127.0.0.1", port=free_port, environ={}))
+    await cog.cog_load()
+    try:
+        assert cog.health.server_up is True
+        async with aiohttp.ClientSession() as session:
+            async with session.get(f"http://127.0.0.1:{free_port}/metrics") as resp:
+                assert 'argus_subsystem_up{subsystem="server"} 1.0' in await resp.text()
+    finally:
+        await cog.cog_unload()
+        assert cog.health.server_up is False
 
 
 async def test_dashboard_can_be_disabled(free_port: int) -> None:

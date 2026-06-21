@@ -24,7 +24,9 @@ the event hooks. ``generate_latest`` serialises both together.
 
 from __future__ import annotations
 
-from collections.abc import Iterator, Mapping
+import contextlib
+import logging
+from collections.abc import Callable, Iterator, Mapping
 
 from prometheus_client import CONTENT_TYPE_LATEST, CollectorRegistry, Counter, Histogram, Info
 from prometheus_client.core import GaugeMetricFamily
@@ -35,15 +37,26 @@ from argus.core.collector import MetricDef, MetricKind
 
 __all__ = ["CONTENT_TYPE_LATEST", "PrometheusAdapter"]
 
+log = logging.getLogger("argus")
+
 
 class _GaugeCollector(Collector):
-    """Reads neutral gauge callbacks at scrape time (invariant 4)."""
+    """Reads neutral gauge callbacks at scrape time (invariant 4).
+
+    Each callback is isolated: if one raises, that single gauge family is skipped
+    and the error counted, so a fragile gauge can never fail the whole scrape and
+    take every other metric down with it (invariant 5).
+    """
 
     def __init__(self) -> None:
         self._gauges: list[MetricDef] = []
+        self._on_error: Callable[[str], None] | None = None
 
     def add(self, metric: MetricDef) -> None:
         self._gauges.append(metric)
+
+    def set_error_hook(self, on_error: Callable[[str], None]) -> None:
+        self._on_error = on_error
 
     def collect(self) -> Iterator[GaugeMetricFamily]:
         for metric in self._gauges:
@@ -51,7 +64,15 @@ class _GaugeCollector(Collector):
                 metric.name, metric.documentation, labels=list(metric.labelnames)
             )
             if metric.callback is not None:
-                for sample in metric.callback():
+                try:
+                    samples = list(metric.callback())
+                except Exception:
+                    log.exception("argus gauge %r failed at scrape; skipping it", metric.name)
+                    if self._on_error is not None:
+                        with contextlib.suppress(Exception):
+                            self._on_error(f"scrape:{metric.name}")
+                    samples = []
+                for sample in samples:
                     family.add_metric(list(sample.labels), sample.value)
             yield family
 
@@ -64,6 +85,10 @@ class PrometheusAdapter(Adapter):
         self._infos: dict[str, Info] = {}
         self._gauge_collector = _GaugeCollector()
         self.registry.register(self._gauge_collector)
+
+    def set_scrape_error_hook(self, on_error: Callable[[str], None]) -> None:
+        """Route scrape-time gauge failures to a counter (wired by the cog)."""
+        self._gauge_collector.set_error_hook(on_error)
 
     def add_metric(self, metric: MetricDef) -> None:
         labels = list(metric.labelnames)
