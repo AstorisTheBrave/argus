@@ -30,8 +30,13 @@ from aiohttp import web
 from aiohttp.typedefs import Middleware
 from prometheus_client import CONTENT_TYPE_LATEST, CollectorRegistry, generate_latest
 
+from argus.exposition.hardening import DEFAULT_MAX_BODY_BYTES, make_harden_response
+
 Handler = Callable[[web.Request], Awaitable[web.StreamResponse]]
 DashboardRegistrar = Callable[[web.Application], None]
+
+# Generic banner so a scanner cannot read the Python/aiohttp version off the bot.
+_SERVER_BANNER = "argus"
 
 
 def make_metrics_handler(registry: CollectorRegistry) -> Handler:
@@ -54,14 +59,18 @@ def build_app(
     *,
     dashboard: DashboardRegistrar | None = None,
     middlewares: Sequence[Middleware] = (),
+    max_body_bytes: int = DEFAULT_MAX_BODY_BYTES,
 ) -> web.Application:
     """Pure factory: build the aiohttp app.
 
     Always serves ``metrics_path`` and ``/healthz``. If ``dashboard`` is given it
     is called with the app to register the dashboard routes. ``middlewares`` are
-    applied to the whole app (used for optional dashboard auth).
+    applied to the whole app (used for optional dashboard auth). Every response is
+    hardened (security headers + version-banner strip) and the request body is
+    capped, matching the fleet control plane.
     """
-    app = web.Application(middlewares=list(middlewares))
+    app = web.Application(middlewares=list(middlewares), client_max_size=max_body_bytes)
+    app.on_response_prepare.append(make_harden_response(_SERVER_BANNER))
     app.router.add_get(metrics_path, make_metrics_handler(registry))
     app.router.add_get("/healthz", health)
     if dashboard is not None:

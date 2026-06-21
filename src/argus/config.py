@@ -38,6 +38,7 @@ DEFAULT_FLEET_STATE_DIR = "."
 
 _TRUE = frozenset({"1", "true", "yes", "on"})
 _FALSE = frozenset({"0", "false", "no", "off", ""})
+_LOOPBACK = frozenset({"127.0.0.1", "localhost", "::1"})
 
 
 def _parse_bool(value: str) -> bool:
@@ -158,6 +159,10 @@ class ArgusConfig:
                 fleet_scrape_target, env.get("ARGUS_FLEET_SCRAPE_TARGET")
             ),
         )
+
+    def is_loopback(self) -> bool:
+        """True if the server binds to a loopback host (not reachable off-host)."""
+        return self.host in _LOOPBACK
 
     @staticmethod
     def _pick_str(kwarg: str | None, env_value: str | None, default: str) -> str:

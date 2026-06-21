@@ -40,6 +40,7 @@ from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 
 from argus import __version__
 from argus.dashboard.server import STATIC_DIR
+from argus.exposition.hardening import make_harden_response
 from argus.fleet.crypto import generate_secret, hash_secret, verify_secret
 from argus.fleet.metrics import FleetMetrics
 from argus.fleet.ratelimit import KeyedRateLimiter
@@ -139,30 +140,6 @@ def _make_fleet_auth_middleware(
     return middleware
 
 
-# Generic banner: do not leak the Python/aiohttp versions to scanners. The
-# reverse proxy is the reliable layer (this signal does not fire on raw parser
-# errors), but stripping it here removes the easy fingerprint.
-_SERVER_BANNER = "argus-fleet"
-_SECURITY_HEADERS = {
-    "X-Content-Type-Options": "nosniff",
-    "X-Frame-Options": "DENY",
-    "Referrer-Policy": "no-referrer",
-    # Permissive enough for the bundled SPA (charts set inline styles) while
-    # blocking framing and foreign script/object sources.
-    "Content-Security-Policy": (
-        "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; "
-        "object-src 'none'; frame-ancestors 'none'"
-    ),
-}
-
-
-async def _harden_response(_request: web.Request, response: web.StreamResponse) -> None:
-    """Strip the version banner and add security headers to every response."""
-    response.headers["Server"] = _SERVER_BANNER
-    for name, value in _SECURITY_HEADERS.items():
-        response.headers[name] = value
-
-
 def _make_cors_middleware(origins: tuple[str, ...]) -> Middleware:
     """Allowlist CORS for a detached UI; preflight is never auth-gated.
 
@@ -245,7 +222,7 @@ def build_fleet_app(
         )
     )
     app = web.Application(middlewares=middlewares, client_max_size=config.max_body_bytes)
-    app.on_response_prepare.append(_harden_response)
+    app.on_response_prepare.append(make_harden_response("argus-fleet"))
     metrics = FleetMetrics(registry)
     # Abuse resistance: per-IP register limit, per-identity heartbeat limit.
     register_limiter = KeyedRateLimiter(config.register_burst)

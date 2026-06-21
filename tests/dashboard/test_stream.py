@@ -40,3 +40,36 @@ async def test_stream_emits_a_snapshot_event(aiohttp_client: Any) -> None:
     payload = json.loads(text[len("data: ") :].strip())
     assert "discord_guilds" in payload["metrics"]
     resp.close()
+
+
+async def test_stream_rejects_when_at_capacity(aiohttp_client: Any, monkeypatch: Any) -> None:
+    import argus.dashboard.server as ds
+
+    monkeypatch.setattr(ds, "_MAX_SSE_CONNECTIONS", 0)
+    client = await aiohttp_client(_app())
+    resp = await client.get("/api/stream")
+    assert resp.status == 503
+
+
+async def test_stream_snapshot_is_cached_across_viewers(
+    aiohttp_client: Any, monkeypatch: Any
+) -> None:
+    from argus.dashboard.snapshot import build_snapshot as real
+
+    calls = {"n": 0}
+
+    def counting(registry: Any) -> Any:
+        calls["n"] += 1
+        return real(registry)
+
+    monkeypatch.setattr("argus.dashboard.server.build_snapshot", counting)
+    client = await aiohttp_client(_app())
+
+    r1 = await client.get("/api/stream")
+    await r1.content.readuntil(b"\n\n")
+    r2 = await client.get("/api/stream")
+    await r2.content.readuntil(b"\n\n")
+    # Two viewers within the TTL share one build (single-flight + short cache).
+    assert calls["n"] == 1
+    r1.close()
+    r2.close()
