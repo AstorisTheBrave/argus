@@ -205,13 +205,25 @@ class FleetConfig:
         """True if the bind host is a loopback address (safe without a token)."""
         return self.host in _LOOPBACK_HOSTS
 
-    def effective_ingest_token(self) -> str | None:
-        """Token required for register/heartbeat (specific, else the shared one)."""
-        return self.ingest_token or self.token
+    @staticmethod
+    def _token_list(value: str | None) -> tuple[str, ...]:
+        """Split a comma-separated token value into the set of accepted tokens.
 
-    def effective_viewer_token(self) -> str | None:
-        """Token required for the UI and read APIs (specific, else the shared one)."""
-        return self.viewer_token or self.token
+        Tokens are URL-safe (no commas), so a comma cleanly separates several
+        valid tokens - which lets an operator rotate a token with no downtime:
+        add the new one, roll everything, then drop the old one.
+        """
+        if not value:
+            return ()
+        return tuple(t.strip() for t in value.split(",") if t.strip())
+
+    def effective_ingest_tokens(self) -> tuple[str, ...]:
+        """Accepted register/heartbeat tokens (specific list, else the shared list)."""
+        return self._token_list(self.ingest_token) or self._token_list(self.token)
+
+    def effective_viewer_tokens(self) -> tuple[str, ...]:
+        """Accepted UI/read-API tokens (specific list, else the shared list)."""
+        return self._token_list(self.viewer_token) or self._token_list(self.token)
 
     @staticmethod
     def _pick_str(kwarg: str | None, env_value: str | None, default: str) -> str:
