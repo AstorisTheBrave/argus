@@ -29,7 +29,6 @@ from __future__ import annotations
 import argparse
 import asyncio
 import contextlib
-import json
 import logging
 import os
 import signal
@@ -37,6 +36,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
+from argus._logging import make_handler
 from argus.exposition.server import start_server
 from argus.fleet import doctor, wizard
 from argus.fleet.config import FleetConfig
@@ -49,30 +49,15 @@ from argus.fleet.sources.prometheus import PrometheusSource
 from argus.fleet.sources.push import PushSource
 
 
-class _JsonFormatter(logging.Formatter):
-    """Minimal structured log formatter for log pipelines."""
-
-    def format(self, record: logging.LogRecord) -> str:
-        return json.dumps(
-            {
-                "time": self.formatTime(record),
-                "level": record.levelname,
-                "logger": record.name,
-                "message": record.getMessage(),
-            }
-        )
-
-
 def configure_logging(log_format: str) -> None:
-    """Configure the service's root logging (text or json). Idempotent."""
-    handler = logging.StreamHandler()
-    if log_format == "json":
-        handler.setFormatter(_JsonFormatter())
-    else:
-        handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(name)s %(message)s"))
+    """Configure the service's root logging (text or json). Idempotent.
+
+    Unlike the in-process SDK, the fleet plane is a standalone process, so it owns
+    and replaces the root logger's handler (shared formatter via argus._logging).
+    """
     root = logging.getLogger()
     root.handlers.clear()
-    root.addHandler(handler)
+    root.addHandler(make_handler(log_format))
     root.setLevel(logging.INFO)
 
 

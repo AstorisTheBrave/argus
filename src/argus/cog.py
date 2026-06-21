@@ -33,6 +33,7 @@ from typing import Any
 
 from discord.ext import commands
 
+from argus._logging import configure_library_logging
 from argus.adapters.prometheus import PrometheusAdapter
 from argus.config import ArgusConfig
 from argus.core.collector import MetricRegistry
@@ -51,6 +52,8 @@ class ArgusCog(commands.Cog):
     def __init__(self, bot: Any, config: ArgusConfig | None = None) -> None:
         self.bot = bot
         self.config = config if config is not None else ArgusConfig.resolve()
+        # Opt-in structured logging on the argus logger only (no-op for "text").
+        configure_library_logging(self.config.log_format)
         self.health = HealthState(
             fleet_enabled=bool(self.config.fleet_url),
             sink_enabled=bool(self.config.enable_per_guild and self.config.clickhouse_dsn),
