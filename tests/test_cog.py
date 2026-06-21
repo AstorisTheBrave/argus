@@ -218,6 +218,33 @@ def test_sink_health_hook_updates_subsystem_state() -> None:
     assert cog.health.sink_up is True
 
 
+async def test_metrics_auth_gates_metrics_even_without_dashboard(free_port: int) -> None:
+    cog = ArgusCog(
+        FakeBot(),
+        ArgusConfig.resolve(
+            host="127.0.0.1",
+            port=free_port,
+            dashboard=False,
+            metrics_auth_token="scrape-secret",
+            environ={},
+        ),
+    )
+    await cog.cog_load()
+    try:
+        base = f"http://127.0.0.1:{free_port}"
+        async with aiohttp.ClientSession() as session:
+            async with session.get(f"{base}/metrics") as resp:
+                assert resp.status == 401
+            async with session.get(
+                f"{base}/metrics", headers={"Authorization": "Bearer scrape-secret"}
+            ) as resp:
+                assert resp.status == 200
+            async with session.get(f"{base}/healthz") as resp:
+                assert resp.status == 200  # health stays open
+    finally:
+        await cog.cog_unload()
+
+
 async def test_dashboard_can_be_disabled(free_port: int) -> None:
     bot = FakeBot()
     cog = ArgusCog(

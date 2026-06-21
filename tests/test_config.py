@@ -153,6 +153,12 @@ def test_fleet_scrape_target() -> None:
     assert cfg.fleet_scrape_target == "10.0.0.5:9191"
 
 
+def test_metrics_auth_token_default_and_env() -> None:
+    assert ArgusConfig.resolve(environ={}).metrics_auth_token is None
+    assert ArgusConfig.resolve(environ={"ARGUS_METRICS_AUTH_TOKEN": "s"}).metrics_auth_token == "s"
+    assert ArgusConfig.resolve(metrics_auth_token="k", environ={}).metrics_auth_token == "k"
+
+
 def test_log_format_default_and_env() -> None:
     assert ArgusConfig.resolve(environ={}).log_format == "text"
     assert ArgusConfig.resolve(environ={"ARGUS_LOG_FORMAT": "json"}).log_format == "json"

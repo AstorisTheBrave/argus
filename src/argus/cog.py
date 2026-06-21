@@ -130,12 +130,20 @@ class ArgusCog(commands.Cog):
 
     async def _start_exposition(self) -> None:
         from argus import __version__
-        from argus.dashboard.auth import make_auth_middleware
+        from argus.dashboard.auth import make_auth_middleware, make_metrics_auth_middleware
         from argus.dashboard.server import register_dashboard
         from argus.exposition.server import build_app, start_server
 
         dashboard = None
         middlewares = []
+        # Optional /metrics auth applies even when the dashboard is disabled
+        # (metrics-only deploys on shared public hosts).
+        if self.config.metrics_auth_token is not None:
+            middlewares.append(
+                make_metrics_auth_middleware(
+                    self.config.metrics_auth_token, self.config.metrics_path
+                )
+            )
         if self.config.dashboard:
             self._warn_if_dashboard_exposed()
             analytics = await self._build_analytics()

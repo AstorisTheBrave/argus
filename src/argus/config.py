@@ -76,6 +76,9 @@ class ArgusConfig:
     dashboard_path: str = DEFAULT_DASHBOARD_PATH
     dashboard_interval: int = DEFAULT_DASHBOARD_INTERVAL
     dashboard_auth_token: str | None = None
+    # Optional bearer token gating /metrics itself (for shared-host public binds);
+    # separate from the dashboard token since the scraper is a different audience.
+    metrics_auth_token: str | None = None
     grafana_url: str | None = None
     # "text" (default, leaves the app's logging untouched) or "json" (opt-in
     # structured logs on the argus logger, for log pipelines).
@@ -106,6 +109,7 @@ class ArgusConfig:
         dashboard_path: str | None = None,
         dashboard_interval: int | None = None,
         dashboard_auth_token: str | None = None,
+        metrics_auth_token: str | None = None,
         grafana_url: str | None = None,
         log_format: str | None = None,
         clickhouse_dsn: str | None = None,
@@ -158,6 +162,9 @@ class ArgusConfig:
             ),
             dashboard_auth_token=cls._pick_optional(
                 dashboard_auth_token, env.get("ARGUS_DASHBOARD_AUTH_TOKEN")
+            ),
+            metrics_auth_token=cls._pick_optional(
+                metrics_auth_token, env.get("ARGUS_METRICS_AUTH_TOKEN")
             ),
             grafana_url=cls._pick_optional(grafana_url, env.get("ARGUS_GRAFANA_URL")),
             log_format=cls._pick_str(log_format, env.get("ARGUS_LOG_FORMAT"), DEFAULT_LOG_FORMAT),
