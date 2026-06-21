@@ -1,5 +1,28 @@
 # Changelog
 
+## [0.4.0](https://github.com/AstorisTheBrave/argus/compare/v0.3.1...v0.4.0) (2026-06-21)
+
+
+### Features
+
+* **core:** time prefix (text) command duration ([#28](https://github.com/AstorisTheBrave/argus/issues/28)) ([3c0a4e0](https://github.com/AstorisTheBrave/argus/commit/3c0a4e01bf76c0f628eefb59d6995e39b03cecf1))
+* **fleet:** cluster drill-down trend history with sparklines ([#25](https://github.com/AstorisTheBrave/argus/issues/25)) ([23ae1a5](https://github.com/AstorisTheBrave/argus/commit/23ae1a5e2cafec3aacf543d0f81cf242c7b8ac3f))
+* **fleet:** flap detection, source-failure resilience, fuzz/load tests + tutorials ([#21](https://github.com/AstorisTheBrave/argus/issues/21)) ([c680e4d](https://github.com/AstorisTheBrave/argus/commit/c680e4d5ee75db8e51d1e5a47119daef64c63c96))
+* **fleet:** graceful shutdown, JSON logging, image hardening, k8s example ([#26](https://github.com/AstorisTheBrave/argus/issues/26)) ([153ad01](https://github.com/AstorisTheBrave/argus/commit/153ad01bf240db005af7601192e9075e4bb16832))
+* **fleet:** hardening slice 1 - secure defaults, efficiency, reliability ([#16](https://github.com/AstorisTheBrave/argus/issues/16)) ([6f72a06](https://github.com/AstorisTheBrave/argus/commit/6f72a066d24deaa9e93089d2a8639edc28185c4c))
+* **fleet:** hardening slice 2 - setup wizard, doctor, DX ([#17](https://github.com/AstorisTheBrave/argus/issues/17)) ([45bfb6c](https://github.com/AstorisTheBrave/argus/commit/45bfb6c29c9dfe60817309b63c027c5d790575ec))
+* **fleet:** hardening slice 4 - rate limiting, retention, single-writer lock ([#19](https://github.com/AstorisTheBrave/argus/issues/19)) ([33d2ad7](https://github.com/AstorisTheBrave/argus/commit/33d2ad754021cb485d26b62c9c86dc538525f552))
+* **fleet:** hardening slice 5 - Prometheus http_sd auto-discovery ([#20](https://github.com/AstorisTheBrave/argus/issues/20)) ([312ce8b](https://github.com/AstorisTheBrave/argus/commit/312ce8bc2ac3d35dc1a9e5a126511514d2006532))
+* **fleet:** split ingest and viewer tokens ([#18](https://github.com/AstorisTheBrave/argus/issues/18)) ([b3c726e](https://github.com/AstorisTheBrave/argus/commit/b3c726e9c466a30e440fe2e494e00c8a405265f1))
+* **fleet:** standalone Argus Fleet control plane ([#14](https://github.com/AstorisTheBrave/argus/issues/14)) ([79f4c2a](https://github.com/AstorisTheBrave/argus/commit/79f4c2acf099649a946d07573c5a9320b19649e3))
+* **fleet:** trusted-proxy client IP, heartbeat jitter, view-build latency metric ([#24](https://github.com/AstorisTheBrave/argus/issues/24)) ([523dc7d](https://github.com/AstorisTheBrave/argus/commit/523dc7da0d48215f92aeaf21961ed4e4165f3055))
+
+
+### Bug Fixes
+
+* **fleet:** make the member client unconditionally fail-open ([#22](https://github.com/AstorisTheBrave/argus/issues/22)) ([7ee0d16](https://github.com/AstorisTheBrave/argus/commit/7ee0d16bae410572f23c9d61f828969ef73cd4de))
+* **fleet:** resolve CodeQL log-injection and ineffectual-statement alerts ([#23](https://github.com/AstorisTheBrave/argus/issues/23)) ([7a89cbe](https://github.com/AstorisTheBrave/argus/commit/7a89cbe7d78511bf38d34dd650a6a9222db84896))
+
 ## [0.3.1](https://github.com/AstorisTheBrave/argus/compare/v0.3.0...v0.3.1) (2026-06-20)
 
 
