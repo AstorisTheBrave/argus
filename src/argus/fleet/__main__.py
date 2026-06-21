@@ -29,7 +29,10 @@ from __future__ import annotations
 import argparse
 import asyncio
 import contextlib
+import json
+import logging
 import os
+import signal
 import sys
 from pathlib import Path
 
@@ -43,6 +46,33 @@ from argus.fleet.sources.base import FleetDataSource
 from argus.fleet.sources.composite import CompositeSource
 from argus.fleet.sources.prometheus import PrometheusSource
 from argus.fleet.sources.push import PushSource
+
+
+class _JsonFormatter(logging.Formatter):
+    """Minimal structured log formatter for log pipelines."""
+
+    def format(self, record: logging.LogRecord) -> str:
+        return json.dumps(
+            {
+                "time": self.formatTime(record),
+                "level": record.levelname,
+                "logger": record.name,
+                "message": record.getMessage(),
+            }
+        )
+
+
+def configure_logging(log_format: str) -> None:
+    """Configure the service's root logging (text or json). Idempotent."""
+    handler = logging.StreamHandler()
+    if log_format == "json":
+        handler.setFormatter(_JsonFormatter())
+    else:
+        handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(name)s %(message)s"))
+    root = logging.getLogger()
+    root.handlers.clear()
+    root.addHandler(handler)
+    root.setLevel(logging.INFO)
 
 
 def build_source(config: FleetConfig) -> FleetDataSource:
@@ -84,8 +114,15 @@ async def _serve(config: FleetConfig) -> None:
     )
     app = build_fleet_app(config, registry, build_source(config))
     runner = await start_server(app, config.host, config.port)
+    # Graceful shutdown: SIGTERM (e.g. `docker stop`) and SIGINT trip the stop
+    # event so the app's cleanup runs (final state flush, source close).
+    stop = asyncio.Event()
+    loop = asyncio.get_running_loop()
+    for sig in (signal.SIGTERM, signal.SIGINT):
+        with contextlib.suppress(NotImplementedError):  # not supported on Windows
+            loop.add_signal_handler(sig, stop.set)
     try:
-        await asyncio.Event().wait()  # run until cancelled
+        await stop.wait()
     finally:
         await runner.cleanup()
         lock.release()
@@ -94,6 +131,7 @@ async def _serve(config: FleetConfig) -> None:
 def _cmd_run() -> int:
     load_dotenv_if_available()
     config = FleetConfig.resolve()
+    configure_logging(config.log_format)
     with contextlib.suppress(KeyboardInterrupt):
         asyncio.run(_serve(config))
     return 0
