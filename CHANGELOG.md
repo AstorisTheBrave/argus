@@ -1,5 +1,38 @@
 # Changelog
 
+## [0.4.2](https://github.com/AstorisTheBrave/argus/compare/v0.4.1...v0.4.2) (2026-06-21)
+
+
+### Features
+
+* **config:** eager .env bootstrap and host-port auto-detect ([#54](https://github.com/AstorisTheBrave/argus/issues/54)) ([b6c57cf](https://github.com/AstorisTheBrave/argus/commit/b6c57cf1f90b03456de018bc01d96c02b10e8d67))
+* **core:** fail-open metrics server, scrape isolation, and self-health ([#43](https://github.com/AstorisTheBrave/argus/issues/43)) ([cb421b6](https://github.com/AstorisTheBrave/argus/commit/cb421b6d1a6757627cc98131caf864e7ce44efcd))
+* **dashboard:** harden the in-process bot server to match the fleet plane ([#44](https://github.com/AstorisTheBrave/argus/issues/44)) ([b96a838](https://github.com/AstorisTheBrave/argus/commit/b96a8386130f3748523e7e815f8f109bcf97f0d2))
+* **dashboard:** optional bearer auth for the /metrics endpoint ([#56](https://github.com/AstorisTheBrave/argus/issues/56)) ([c1ad15c](https://github.com/AstorisTheBrave/argus/commit/c1ad15c496f0bdb6b5ce6b63c941510d1c09dc60))
+* **fleet:** accept multiple tokens for zero-downtime rotation ([#40](https://github.com/AstorisTheBrave/argus/issues/40)) ([eb99c92](https://github.com/AstorisTheBrave/argus/commit/eb99c921e2a1981f107fd95107a2c3cb72c46f09))
+* **fleet:** per-identity lease secrets (un-shareable, rotatable identity) ([#41](https://github.com/AstorisTheBrave/argus/issues/41)) ([92b4863](https://github.com/AstorisTheBrave/argus/commit/92b4863ce65f76f6aa69c1094793473b738cd307))
+* **fleet:** read-side rate limit and optional audit log ([#42](https://github.com/AstorisTheBrave/argus/issues/42)) ([db2f5d1](https://github.com/AstorisTheBrave/argus/commit/db2f5d1b0e0759002e9b6306fae1892b7acabdb5))
+* **history:** drop counter, resilient sink worker, idempotent Argus(bot) ([#45](https://github.com/AstorisTheBrave/argus/issues/45)) ([a2efd36](https://github.com/AstorisTheBrave/argus/commit/a2efd369a9f694e033e143179159b253a3e41f5c))
+* **history:** sink circuit breaker drives live argus_subsystem_up{sink} ([#51](https://github.com/AstorisTheBrave/argus/issues/51)) ([7d5b2d2](https://github.com/AstorisTheBrave/argus/commit/7d5b2d2fd2f0fe317fd5e5acf68bfcf16a05ee1f))
+* **logging:** opt-in JSON logging for the bot side ([#52](https://github.com/AstorisTheBrave/argus/issues/52)) ([692d903](https://github.com/AstorisTheBrave/argus/commit/692d903276db15570c787683dcd5b5da4dec3fe0))
+* **observability:** optional Prometheus Pushgateway push (no inbound port) ([#58](https://github.com/AstorisTheBrave/argus/issues/58)) ([4819152](https://github.com/AstorisTheBrave/argus/commit/48191525bc8f2812bff188435baa81555ab065eb))
+* **observability:** ship Prometheus alert/recording rules and a health dashboard ([#46](https://github.com/AstorisTheBrave/argus/issues/46)) ([9b9367c](https://github.com/AstorisTheBrave/argus/commit/9b9367c11ec169d1988f2b8dbf3d6a15c7307264))
+* **observability:** SLO burn-rate alerts and a golden-signals dashboard row ([#53](https://github.com/AstorisTheBrave/argus/issues/53)) ([b9ec60c](https://github.com/AstorisTheBrave/argus/commit/b9ec60c8623ac7dce5d1f0edc139ca5993366713))
+
+
+### Bug Fixes
+
+* **fleet:** default member identity to cluster_id; fix copy-paste quickstart ([#38](https://github.com/AstorisTheBrave/argus/issues/38)) ([791c587](https://github.com/AstorisTheBrave/argus/commit/791c5879b1465a5ab61b63aabc5569dd15cc49dc))
+* **fleet:** write state and identity files owner-only (0600) ([#39](https://github.com/AstorisTheBrave/argus/issues/39)) ([89f9fea](https://github.com/AstorisTheBrave/argus/commit/89f9feaecd0cb1f9fffe6b05228fcdfb0a7e25e2))
+
+
+### Documentation
+
+* clarify cluster_id is always distinct, ports only differ when co-located ([#36](https://github.com/AstorisTheBrave/argus/issues/36)) ([2d5d040](https://github.com/AstorisTheBrave/argus/commit/2d5d04019b315970bcc5596fe3738c1da937299d))
+* **hosting:** recipes for Pterodactyl, PebbleHost, Ori, and Railway ([#55](https://github.com/AstorisTheBrave/argus/issues/55)) ([b90503d](https://github.com/AstorisTheBrave/argus/commit/b90503d7914aa424e318417a2fb241a849102e54))
+* lead with push (no inbound port) for Docker bot hosts ([#57](https://github.com/AstorisTheBrave/argus/issues/57)) ([af21611](https://github.com/AstorisTheBrave/argus/commit/af21611adbcfb89d22e9f8e393c9d7736e9499de))
+* **readme:** add a How Argus works section with an architecture diagram ([#49](https://github.com/AstorisTheBrave/argus/issues/49)) ([36c3dbf](https://github.com/AstorisTheBrave/argus/commit/36c3dbf47c303184130cf64d07567bfa6fecf12c))
+
 ## [0.4.1](https://github.com/AstorisTheBrave/argus/compare/v0.4.0...v0.4.1) (2026-06-21)
 
 
