@@ -64,6 +64,8 @@ class BatchingSink(EventSink):
         flush_interval: float = 5.0,
         max_queue: int = 10_000,
         on_drop: Callable[[], None] | None = None,
+        circuit_threshold: int = 5,
+        circuit_cooldown: float = 30.0,
     ) -> None:
         self._queue: asyncio.Queue[Event] = asyncio.Queue(maxsize=max_queue)
         self._batch_size = batch_size
@@ -73,10 +75,31 @@ class BatchingSink(EventSink):
         self._closed = False
         self._on_drop = on_drop
         self.dropped = 0
+        # Circuit breaker: after this many consecutive flush failures the sink is
+        # marked unhealthy and stops attempting flushes for a cooldown, so it does
+        # not hammer a down backing store. The bounded queue sheds load meanwhile.
+        self._circuit_threshold = circuit_threshold
+        self._circuit_cooldown = circuit_cooldown
+        self._fail_streak = 0
+        self._open_until = 0.0
+        self.healthy = True
+        self._on_health: Callable[[bool], None] | None = None
 
     def set_drop_hook(self, on_drop: Callable[[], None]) -> None:
         """Route a dropped event to a counter (wired by the cog)."""
         self._on_drop = on_drop
+
+    def set_health_hook(self, on_health: Callable[[bool], None]) -> None:
+        """Report sink health transitions (wired by the cog to argus_subsystem_up)."""
+        self._on_health = on_health
+
+    def _set_healthy(self, healthy: bool) -> None:
+        if healthy == self.healthy:
+            return
+        self.healthy = healthy
+        if self._on_health is not None:
+            with contextlib.suppress(Exception):
+                self._on_health(healthy)
 
     async def record(self, event: Event) -> None:
         if self._closed:
@@ -101,6 +124,13 @@ class BatchingSink(EventSink):
         # collection or flush is logged and the loop continues, so one bad batch
         # cannot silently kill the drain and turn every later event into a drop.
         while not (self._closed and self._queue.empty()):
+            loop = asyncio.get_running_loop()
+            # Circuit open: do not hammer a failing sink. Let the bounded queue
+            # shed load (drops are counted at record) until the cooldown elapses.
+            # On close we fall through and attempt a final drain regardless.
+            if not self._closed and self._open_until > loop.time():
+                await asyncio.sleep(min(self._flush_interval, self._open_until - loop.time()))
+                continue
             try:
                 batch = await self._collect_batch()
             except asyncio.CancelledError:
@@ -116,6 +146,20 @@ class BatchingSink(EventSink):
                 raise
             except Exception:  # a sink failure must not kill the worker
                 log.exception("argus history flush failed (%d events dropped)", len(batch))
+                self._record_failure(loop.time())
+            else:
+                self._record_success()
+
+    def _record_failure(self, now: float) -> None:
+        self._fail_streak += 1
+        if self._fail_streak >= self._circuit_threshold:
+            self._open_until = now + self._circuit_cooldown
+            self._set_healthy(False)
+
+    def _record_success(self) -> None:
+        self._fail_streak = 0
+        self._open_until = 0.0
+        self._set_healthy(True)
 
     async def _collect_batch(self) -> list[Event]:
         batch: list[Event] = []

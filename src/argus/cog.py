@@ -69,15 +69,21 @@ class ArgusCog(commands.Cog):
         )
         # Isolate scrape-time gauge failures into the error counter (invariant 5).
         self.adapter.set_scrape_error_hook(self.instrumentation.count_error)
-        # Surface sink overflow as a counter rather than a hidden attribute.
+        # Surface sink overflow as a counter, and reflect sink health live in
+        # argus_subsystem_up{subsystem="sink"} via the circuit breaker.
         if isinstance(self.sink, BatchingSink):
             self.sink.set_drop_hook(self.instrumentation.count_dropped)
+            self.sink.set_health_hook(self._set_sink_health)
         self.registry.set_info(self.names.bot_info, bot_info_values())
         self._runner: Any = None
         self._analytics_client: Any = None
         self._fleet_client: Any = None
         # Register listeners synchronously; additive, safe before the bot logs in.
         self._registration: Registration = register(bot, self.instrumentation)
+
+    def _set_sink_health(self, healthy: bool) -> None:
+        """Reflect the sink circuit breaker in argus_subsystem_up{subsystem=sink}."""
+        self.health.sink_up = healthy
 
     def _build_sink(self) -> EventSink:
         """Select the analytical sink. NullSink unless per-guild analytics is on."""
