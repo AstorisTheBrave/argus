@@ -42,6 +42,12 @@ if TYPE_CHECKING:
 
 STATIC_DIR = Path(__file__).parent / "static"
 
+# Bound concurrent SSE streams so an open-by-default dashboard cannot be turned
+# into a resource-exhaustion vector by opening many never-closing connections.
+_MAX_SSE_CONNECTIONS = 64
+# Coalesce snapshot builds: many viewers within this window share one build.
+_SNAPSHOT_TTL = 1.0
+
 
 def _dumps(obj: Any) -> str:
     return json.dumps(obj, default=str)
@@ -59,6 +65,25 @@ def register_dashboard(
         raise ValueError(f"dashboard_path {config.dashboard_path!r} collides with metrics_path")
 
     analytics_enabled = analytics is not None
+
+    # Shared snapshot cache + single-flight, and a concurrent-stream cap, so N
+    # viewers cost one build per window rather than one full scrape each.
+    sse = {"active": 0}
+    snap_at = 0.0
+    snap_val: dict[str, Any] | None = None
+    snap_lock = asyncio.Lock()
+
+    async def cached_snapshot() -> dict[str, Any]:
+        nonlocal snap_at, snap_val
+        loop = asyncio.get_running_loop()
+        if snap_val is not None and (loop.time() - snap_at) < _SNAPSHOT_TTL:
+            return snap_val
+        async with snap_lock:
+            if snap_val is not None and (loop.time() - snap_at) < _SNAPSHOT_TTL:
+                return snap_val
+            snap_val = build_snapshot(registry)
+            snap_at = loop.time()
+            return snap_val
 
     async def index(_request: web.Request) -> web.StreamResponse:
         index_html = STATIC_DIR / "index.html"
@@ -78,6 +103,9 @@ def register_dashboard(
         return web.json_response(payload)
 
     async def stream(request: web.Request) -> web.StreamResponse:
+        if sse["active"] >= _MAX_SSE_CONNECTIONS:
+            raise web.HTTPServiceUnavailable(text="too many dashboard streams\n")
+        sse["active"] += 1
         response = web.StreamResponse(
             headers={
                 "Content-Type": "text/event-stream",
@@ -88,11 +116,13 @@ def register_dashboard(
         await response.prepare(request)
         try:
             while True:
-                payload = json.dumps(build_snapshot(registry))
+                payload = json.dumps(await cached_snapshot())
                 await response.write(f"data: {payload}\n\n".encode())
                 await asyncio.sleep(config.dashboard_interval)
         except (ConnectionResetError, asyncio.CancelledError):
             pass
+        finally:
+            sse["active"] -= 1
         return response
 
     def _guild_id(request: web.Request) -> str:

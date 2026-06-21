@@ -156,6 +156,30 @@ async def test_cog_load_marks_server_healthy(free_port: int) -> None:
         assert cog.health.server_up is False
 
 
+async def test_dashboard_exposed_without_token_warns(free_port: int, caplog: Any) -> None:
+    import logging
+
+    cog = ArgusCog(FakeBot(), ArgusConfig.resolve(host="0.0.0.0", port=free_port, environ={}))
+    with caplog.at_level(logging.WARNING, logger="argus"):
+        await cog.cog_load()
+    try:
+        assert any("without an auth token" in r.message for r in caplog.records)
+    finally:
+        await cog.cog_unload()
+
+
+async def test_dashboard_on_loopback_does_not_warn(free_port: int, caplog: Any) -> None:
+    import logging
+
+    cog = ArgusCog(FakeBot(), ArgusConfig.resolve(host="127.0.0.1", port=free_port, environ={}))
+    with caplog.at_level(logging.WARNING, logger="argus"):
+        await cog.cog_load()
+    try:
+        assert not any("without an auth token" in r.message for r in caplog.records)
+    finally:
+        await cog.cog_unload()
+
+
 async def test_dashboard_can_be_disabled(free_port: int) -> None:
     bot = FakeBot()
     cog = ArgusCog(

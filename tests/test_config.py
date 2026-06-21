@@ -149,3 +149,9 @@ def test_fleet_scrape_target() -> None:
     assert ArgusConfig.resolve(environ={}).fleet_scrape_target is None
     cfg = ArgusConfig.resolve(environ={"ARGUS_FLEET_SCRAPE_TARGET": "10.0.0.5:9191"})
     assert cfg.fleet_scrape_target == "10.0.0.5:9191"
+
+
+def test_is_loopback() -> None:
+    assert ArgusConfig.resolve(host="127.0.0.1", environ={}).is_loopback() is True
+    assert ArgusConfig.resolve(host="localhost", environ={}).is_loopback() is True
+    assert ArgusConfig.resolve(host="0.0.0.0", environ={}).is_loopback() is False

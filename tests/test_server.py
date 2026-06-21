@@ -43,3 +43,12 @@ async def test_custom_metrics_path(aiohttp_client: Any) -> None:
     client = await aiohttp_client(build_app(_registry(), metrics_path="/m"))
     assert (await client.get("/m")).status == 200
     assert (await client.get("/metrics")).status == 404
+
+
+async def test_security_headers_and_banner(aiohttp_client: Any) -> None:
+    client = await aiohttp_client(build_app(_registry()))
+    resp = await client.get("/healthz")
+    assert resp.headers["Server"] == "argus"  # version banner stripped
+    assert resp.headers["X-Frame-Options"] == "DENY"
+    assert resp.headers["X-Content-Type-Options"] == "nosniff"
+    assert "Content-Security-Policy" in resp.headers

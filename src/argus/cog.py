@@ -125,6 +125,7 @@ class ArgusCog(commands.Cog):
         dashboard = None
         middlewares = []
         if self.config.dashboard:
+            self._warn_if_dashboard_exposed()
             analytics = await self._build_analytics()
             dashboard = register_dashboard(
                 self.config,
@@ -153,6 +154,24 @@ class ArgusCog(commands.Cog):
             self.config.port,
             self.config.metrics_path,
         )
+
+    def _warn_if_dashboard_exposed(self) -> None:
+        """Warn (cannot refuse) when the dashboard is reachable off-host untokened.
+
+        Unlike the fleet plane we cannot refuse to start: ``/metrics`` must stay
+        open for Prometheus on the same server. But an off-loopback dashboard with
+        no token exposes the live SSE view to anyone who can reach the port, so we
+        make the operator aware and point at the fix.
+        """
+        if self.config.dashboard_auth_token is None and not self.config.is_loopback():
+            log.warning(
+                "argus dashboard is reachable on %s:%d without an auth token; set "
+                "dashboard_auth_token (or ARGUS_DASHBOARD_AUTH_TOKEN), or bind to "
+                "127.0.0.1 and reverse-proxy it. The %s endpoint stays open for Prometheus.",
+                self.config.host,
+                self.config.port,
+                self.config.metrics_path,
+            )
 
     async def _start_fleet_client(self) -> None:
         """Start the opt-in fleet client (fail-open; no-op unless fleet_url set)."""
