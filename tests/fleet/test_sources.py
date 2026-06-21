@@ -11,7 +11,7 @@ from argus.fleet.model import empty_metrics
 from argus.fleet.registry import STATUS_DOWN, Registry
 from argus.fleet.sources.base import ClusterValues, FleetDataSource, assemble
 from argus.fleet.sources.composite import CompositeSource
-from argus.fleet.sources.push import PushSource, derive_metrics
+from argus.fleet.sources.push import PushSource, derive_metrics, derive_shards
 
 
 def _gauge(name: str, value: float, **labels: str) -> dict[str, Any]:
@@ -125,6 +125,29 @@ def test_derive_metrics_is_fuzz_safe(garbage: dict[str, Any]) -> None:
         raise AssertionError(f"derive_metrics raised on garbage input: {exc!r}") from exc
     assert set(metrics) == set(empty_metrics())
     assert totals == (0.0, 0.0)
+
+
+def test_derive_shards_from_snapshot() -> None:
+    snap = _snapshot(shards_up=3, latency=0.08)
+    shards = derive_shards(snap, "discord")
+    assert [s.shard_id for s in shards] == ["0", "1", "2"]
+    assert all(s.status == "up" for s in shards)
+    assert shards[0].latency_seconds == 0.08  # latency sample only on shard 0
+    assert shards[1].latency_seconds == 0.0
+
+
+def test_derive_shards_empty_without_data() -> None:
+    assert derive_shards(None, "discord") == []
+    assert derive_shards({"metrics": {}}, "discord") == []
+
+
+async def test_push_source_attaches_shards(tmp_path: Path) -> None:
+    reg = Registry(state_path=tmp_path / "s.json")
+    reg.register("a", "asia", now=0.0)
+    reg.heartbeat("a", snapshot=_snapshot(shards_up=2, latency=0.05), now=1.0)
+    view = await PushSource("discord").fleet_snapshot(reg)
+    cluster = view.fleets[0].clusters[0]
+    assert [s.shard_id for s in cluster.shards] == ["0", "1"]
 
 
 async def test_push_source_builds_fleet_view(tmp_path: Path) -> None:

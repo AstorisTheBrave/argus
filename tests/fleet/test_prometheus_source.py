@@ -8,7 +8,7 @@ from typing import Any
 import pytest
 from aiohttp import web
 
-from argus.fleet.promql import error_total_queries
+from argus.fleet.promql import error_total_queries, shard_queries
 from argus.fleet.registry import Registry
 from argus.fleet.sources.prometheus import HTTPQueryClient, PrometheusSource, _by_cluster
 
@@ -18,6 +18,7 @@ class _FakeClient:
 
     def __init__(self, namespace: str = "discord") -> None:
         self._errors_q, self._commands_q = error_total_queries(namespace)
+        self._shard_up_q, self._shard_latency_q = shard_queries(namespace)
         self.closed = False
 
     async def aclose(self) -> None:
@@ -28,6 +29,10 @@ class _FakeClient:
             return [({"cluster": "a"}, 2.0), ({"cluster": "b"}, 0.0)]
         if promql == self._commands_q:
             return [({"cluster": "a"}, 100.0), ({"cluster": "b"}, 50.0)]
+        if promql == self._shard_up_q:
+            return [({"cluster": "a", "shard": "0"}, 1.0), ({"cluster": "a", "shard": "1"}, 0.0)]
+        if promql == self._shard_latency_q:
+            return [({"cluster": "a", "shard": "0"}, 0.07)]
         if "discord_guilds" in promql:
             return [({"cluster": "a"}, 10.0), ({"cluster": "b"}, 5.0)]
         if "discord_shard_up" in promql:
@@ -52,6 +57,16 @@ async def test_prometheus_source_maps_values(tmp_path: Path) -> None:
     assert values.metrics["a"]["shards_up"] == 2.0
     assert values.metrics["b"]["shards_up"] == 0.0  # missing row -> 0
     assert values.error_totals["a"] == (2.0, 100.0)
+
+
+async def test_prometheus_source_builds_shards(tmp_path: Path) -> None:
+    reg = Registry(tmp_path / "s.json")
+    reg.register("a", "asia", now=0.0)
+    source = PrometheusSource("http://prom", "discord", client=_FakeClient())
+    values = await source.cluster_values(reg)
+    shards = values.shards["a"]
+    assert [(s.shard_id, s.status) for s in shards] == [("0", "up"), ("1", "down")]
+    assert shards[0].latency_seconds == 0.07
 
 
 async def test_prometheus_source_full_view_rollup(tmp_path: Path) -> None:

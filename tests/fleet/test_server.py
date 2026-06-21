@@ -123,6 +123,34 @@ async def test_cluster_view_found_and_missing(aiohttp_client: Any, tmp_path: Pat
     assert missing.status == 404
 
 
+async def test_cluster_view_includes_shards(aiohttp_client: Any, tmp_path: Path) -> None:
+    client = await aiohttp_client(_app(tmp_path))
+    await client.post("/fleet/register", json={"identity": "a", "fleet": "asia"})
+    snap = {
+        "metrics": {
+            "discord_shard_up": {
+                "samples": [
+                    {"name": "discord_shard_up", "labels": {"shard": "0"}, "value": 1},
+                    {"name": "discord_shard_up", "labels": {"shard": "1"}, "value": 0},
+                ]
+            },
+            "discord_shard_latency_seconds": {
+                "samples": [
+                    {
+                        "name": "discord_shard_latency_seconds",
+                        "labels": {"shard": "0"},
+                        "value": 0.1,
+                    }
+                ]
+            },
+        }
+    }
+    await client.post("/fleet/heartbeat", json={"identity": "a", "snapshot": snap})
+    body = await (await client.get("/api/fleet/cluster?fleet=asia&number=1")).json()
+    shards = body["cluster"]["shards"]
+    assert [(s["shard_id"], s["status"]) for s in shards] == [("0", "up"), ("1", "down")]
+
+
 async def test_cluster_view_accumulates_history(aiohttp_client: Any, tmp_path: Path) -> None:
     client = await aiohttp_client(_app(tmp_path))
     await client.post(

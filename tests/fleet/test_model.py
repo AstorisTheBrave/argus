@@ -23,6 +23,23 @@ def test_empty_metrics_has_every_key_zeroed() -> None:
 def test_cluster_view_defaults() -> None:
     cv = ClusterView(number=1, identity="a", fleet="asia", status="up", last_seen="t")
     assert cv.metrics == empty_metrics()
+    assert cv.shards == []
+
+
+def test_cluster_view_with_shards_serialises() -> None:
+    from dataclasses import asdict
+
+    from argus.fleet.model import ShardView
+
+    cv = ClusterView(
+        number=1,
+        identity="a",
+        fleet="asia",
+        status="up",
+        last_seen="t",
+        shards=[ShardView(shard_id="0", status="up", latency_seconds=0.1)],
+    )
+    assert asdict(cv)["shards"][0] == {"shard_id": "0", "status": "up", "latency_seconds": 0.1}
 
 
 def test_fleet_view_to_dict_exposes_global_key() -> None:

@@ -133,7 +133,8 @@ See the [OTLP tutorial](https://github.com/AstorisTheBrave/argus/wiki/Tutorial-O
 Running many bot processes across regions? The **Argus Fleet** control plane is a
 separate, opt-in service that aggregates them into one readable, multi-tier view:
 **Global** (everything) -> **Fleet** (a region, e.g. `asia`) -> **Cluster** (one
-process). It renders plain, colour-graded panels with no PromQL or Grafana setup,
+process) -> **Shard** (per-shard up/latency). It renders plain, colour-graded
+panels with no PromQL or Grafana setup,
 and reads from two interchangeable sources: a self-contained **push** path (zero
 infra; members heartbeat to it) and an existing **Prometheus**.
 

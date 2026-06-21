@@ -26,6 +26,15 @@ def test_thresholds_present_where_meaningful() -> None:
     assert by_key["guilds"].warn is None  # counts are not thresholded
 
 
+def test_shard_queries_group_by_cluster_and_shard() -> None:
+    from argus.fleet.promql import shard_queries
+
+    up, latency = shard_queries("mybot")
+    assert "by (cluster, shard)" in up
+    assert "mybot_shard_up" in up
+    assert "mybot_shard_latency_seconds" in latency
+
+
 def test_error_total_queries_group_by_cluster() -> None:
     errors, commands = error_total_queries("mybot")
     assert "mybot_command_errors_total" in errors

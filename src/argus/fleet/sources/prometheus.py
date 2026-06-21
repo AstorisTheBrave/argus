@@ -31,9 +31,9 @@ from typing import Protocol
 
 import aiohttp
 
-from argus.fleet.model import empty_metrics
-from argus.fleet.promql import build_queries, error_total_queries
-from argus.fleet.registry import Registry
+from argus.fleet.model import ShardView, empty_metrics
+from argus.fleet.promql import build_queries, error_total_queries, shard_queries
+from argus.fleet.registry import STATUS_DOWN, STATUS_UP, Registry
 from argus.fleet.sources.base import ClusterValues, FleetDataSource
 
 # A PromQL result row: the metric's labels and its instant value.
@@ -92,6 +92,26 @@ def _by_cluster(rows: QueryResult) -> dict[str, float]:
     return {labels["cluster"]: value for labels, value in rows if "cluster" in labels}
 
 
+def _by_cluster_shard(rows: QueryResult) -> dict[str, dict[str, float]]:
+    out: dict[str, dict[str, float]] = {}
+    for labels, value in rows:
+        if "cluster" in labels and "shard" in labels:
+            out.setdefault(labels["cluster"], {})[labels["shard"]] = value
+    return out
+
+
+def _build_shards(up: dict[str, float], latency: dict[str, float]) -> list[ShardView]:
+    shard_ids = sorted(set(up) | set(latency), key=lambda x: (len(x), x))
+    return [
+        ShardView(
+            shard_id=shard,
+            status=STATUS_UP if up.get(shard, 0.0) >= 1.0 else STATUS_DOWN,
+            latency_seconds=latency.get(shard, 0.0),
+        )
+        for shard in shard_ids
+    ]
+
+
 class PrometheusSource(FleetDataSource):
     """Map curated PromQL results to per-cluster metric values, keyed by cluster."""
 
@@ -106,15 +126,20 @@ class PrometheusSource(FleetDataSource):
     async def cluster_values(self, registry: Registry) -> ClusterValues:
         queries = build_queries(self._namespace)
         errors_q, commands_q = error_total_queries(self._namespace)
-        # Run the whole catalog concurrently: one round-trip of latency, not ~11.
+        shard_up_q, shard_latency_q = shard_queries(self._namespace)
+        # Run the whole catalog concurrently: one round-trip of latency, not ~13.
         results = await asyncio.gather(
             *(self._client.query(q.promql_by_cluster) for q in queries),
             self._client.query(errors_q),
             self._client.query(commands_q),
+            self._client.query(shard_up_q),
+            self._client.query(shard_latency_q),
         )
         per_key = {q.key: _by_cluster(results[i]) for i, q in enumerate(queries)}
         errors = _by_cluster(results[len(queries)])
         commands = _by_cluster(results[len(queries) + 1])
+        shard_up = _by_cluster_shard(results[len(queries) + 2])
+        shard_latency = _by_cluster_shard(results[len(queries) + 3])
 
         values = ClusterValues()
         for entry in registry.entries():
@@ -124,6 +149,9 @@ class PrometheusSource(FleetDataSource):
                 metrics[key] = by_cluster.get(cluster, 0.0)
             values.metrics[cluster] = metrics
             values.error_totals[cluster] = (errors.get(cluster, 0.0), commands.get(cluster, 0.0))
+            values.shards[cluster] = _build_shards(
+                shard_up.get(cluster, {}), shard_latency.get(cluster, {})
+            )
         return values
 
     async def aclose(self) -> None:
