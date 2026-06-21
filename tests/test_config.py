@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 from dataclasses import FrozenInstanceError
+from pathlib import Path
+from typing import Any
 
 import pytest
 
-from argus.config import ArgusConfig
+from argus.config import ArgusConfig, bootstrap, load_dotenv_if_available
 
 
 def test_defaults_when_nothing_provided() -> None:
@@ -155,6 +157,45 @@ def test_log_format_default_and_env() -> None:
     assert ArgusConfig.resolve(environ={}).log_format == "text"
     assert ArgusConfig.resolve(environ={"ARGUS_LOG_FORMAT": "json"}).log_format == "json"
     assert ArgusConfig.resolve(log_format="json", environ={}).log_format == "json"
+
+
+def test_port_falls_back_to_host_injected_vars() -> None:
+    # Pterodactyl/PebbleHost set SERVER_PORT; Railway/PaaS set PORT.
+    assert ArgusConfig.resolve(environ={"SERVER_PORT": "25570"}).port == 25570
+    assert ArgusConfig.resolve(environ={"PORT": "8080"}).port == 8080
+    # Precedence: ARGUS_PORT > SERVER_PORT > PORT > default.
+    env = {"ARGUS_PORT": "9000", "SERVER_PORT": "25570", "PORT": "8080"}
+    assert ArgusConfig.resolve(environ=env).port == 9000
+    assert ArgusConfig.resolve(environ={"SERVER_PORT": "25570", "PORT": "8080"}).port == 25570
+    # An explicit kwarg still wins over everything.
+    assert ArgusConfig.resolve(port=1234, environ=env).port == 1234
+    assert ArgusConfig.resolve(environ={}).port == 9191  # default unchanged
+
+
+def test_host_falls_back_to_server_ip() -> None:
+    assert ArgusConfig.resolve(environ={"SERVER_IP": "10.0.0.5"}).host == "10.0.0.5"
+    explicit = ArgusConfig.resolve(environ={"ARGUS_HOST": "127.0.0.1", "SERVER_IP": "10.0.0.5"})
+    assert explicit.host == "127.0.0.1"  # ARGUS_HOST wins over SERVER_IP
+    assert ArgusConfig.resolve(environ={}).host == "0.0.0.0"
+
+
+def test_bootstrap_loads_dotenv_then_resolves(tmp_path: Path, monkeypatch: Any) -> None:
+    (tmp_path / ".env").write_text("ARGUS_CLUSTER_ID=from-dotenv\n", encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.delenv("ARGUS_CLUSTER_ID", raising=False)
+    try:
+        cfg = bootstrap()
+        assert cfg.cluster_id == "from-dotenv"
+    finally:
+        # load_dotenv mutates os.environ directly; undo the leak.
+        import os
+
+        os.environ.pop("ARGUS_CLUSTER_ID", None)
+
+
+def test_load_dotenv_is_noop_without_file(tmp_path: Path, monkeypatch: Any) -> None:
+    monkeypatch.chdir(tmp_path)  # no .env here
+    assert load_dotenv_if_available() is False
 
 
 def test_is_loopback() -> None:

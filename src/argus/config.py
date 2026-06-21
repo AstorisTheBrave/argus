@@ -25,6 +25,8 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass
+from pathlib import Path
+from typing import Any
 
 # Defaults live here once, so the public API and the env path agree.
 DEFAULT_PORT = 9191
@@ -124,8 +126,16 @@ class ArgusConfig:
         env = os.environ if environ is None else environ
 
         return cls(
-            port=cls._pick_int(port, env.get("ARGUS_PORT"), DEFAULT_PORT),
-            host=cls._pick_str(host, env.get("ARGUS_HOST"), DEFAULT_HOST),
+            # Port/host fall back to the variables Docker bot hosts inject, so
+            # Argus binds the host's allocation with no extra config: Pterodactyl /
+            # PebbleHost set SERVER_PORT + SERVER_IP, Railway and other PaaS set
+            # PORT. An explicit ARGUS_PORT/ARGUS_HOST (or kwarg) always wins.
+            port=cls._pick_int(
+                port,
+                env.get("ARGUS_PORT") or env.get("SERVER_PORT") or env.get("PORT"),
+                DEFAULT_PORT,
+            ),
+            host=cls._pick_str(host, env.get("ARGUS_HOST") or env.get("SERVER_IP"), DEFAULT_HOST),
             metrics_path=_normalize_path(
                 cls._pick_str(metrics_path, env.get("ARGUS_METRICS_PATH"), DEFAULT_METRICS_PATH)
             ),
@@ -199,3 +209,35 @@ class ArgusConfig:
         if env_value is not None:
             return _parse_bool(env_value)
         return default
+
+
+def load_dotenv_if_available(path: str = ".env") -> bool:
+    """Soft-load a ``.env`` into the environment when python-dotenv is installed.
+
+    Returns True if a file was loaded. No-op (returns False) when dotenv is not
+    installed or no file exists. Never overrides an existing environment variable,
+    so the process environment always wins over the file. This is the only place,
+    besides the fleet CLI, where Argus touches a dotenv file - it keeps the
+    "one config funnel" rule intact (invariant 6).
+    """
+    try:
+        from dotenv import load_dotenv
+    except ImportError:
+        return False
+    if not Path(path).is_file():
+        return False
+    load_dotenv(path, override=False)
+    return True
+
+
+def bootstrap(**kwargs: Any) -> ArgusConfig:
+    """Eager startup entry: load ``.env`` once, then resolve the one config object.
+
+    Used by ``Argus(bot)`` so that on hosts where the only way to inject config is
+    an uploaded ``.env`` file (some Docker bot panels), everything is loaded before
+    any component runs. Resolution still flows through :meth:`ArgusConfig.resolve`,
+    so there remains exactly one config funnel and the result is the usual frozen,
+    injectable config object - not a global singleton.
+    """
+    load_dotenv_if_available()
+    return ArgusConfig.resolve(**kwargs)

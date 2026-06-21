@@ -32,6 +32,9 @@ classifiers = [
 [project.optional-dependencies]
 otlp = ["opentelemetry-sdk", "opentelemetry-exporter-otlp-proto-grpc"]
 clickhouse = ["clickhouse-connect[async]"]
+# Autoload a .env at Argus(bot) startup. Useful on Docker bot hosts whose panel
+# only lets you upload files (no env-var UI), so config travels in a .env.
+dotenv = ["python-dotenv>=1.0"]
 # Quality-of-life for the Fleet control plane: autoload a .env so
 # `python -m argus.fleet` just works after `argus-fleet init`. Optional; when
 # absent, the generated compose env_file / systemd EnvironmentFile load it.
