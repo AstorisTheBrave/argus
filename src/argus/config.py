@@ -35,6 +35,7 @@ DEFAULT_DASHBOARD_PATH = "/"
 DEFAULT_DASHBOARD_INTERVAL = 5
 DEFAULT_FLEET_GROUP = "default"
 DEFAULT_FLEET_STATE_DIR = "."
+DEFAULT_LOG_FORMAT = "text"
 
 _TRUE = frozenset({"1", "true", "yes", "on"})
 _FALSE = frozenset({"0", "false", "no", "off", ""})
@@ -74,6 +75,9 @@ class ArgusConfig:
     dashboard_interval: int = DEFAULT_DASHBOARD_INTERVAL
     dashboard_auth_token: str | None = None
     grafana_url: str | None = None
+    # "text" (default, leaves the app's logging untouched) or "json" (opt-in
+    # structured logs on the argus logger, for log pipelines).
+    log_format: str = DEFAULT_LOG_FORMAT
     clickhouse_dsn: str | None = None
     # Fleet control plane (opt-in): when fleet_url is unset, no fleet code runs.
     fleet_url: str | None = None
@@ -101,6 +105,7 @@ class ArgusConfig:
         dashboard_interval: int | None = None,
         dashboard_auth_token: str | None = None,
         grafana_url: str | None = None,
+        log_format: str | None = None,
         clickhouse_dsn: str | None = None,
         fleet_url: str | None = None,
         fleet_token: str | None = None,
@@ -145,6 +150,7 @@ class ArgusConfig:
                 dashboard_auth_token, env.get("ARGUS_DASHBOARD_AUTH_TOKEN")
             ),
             grafana_url=cls._pick_optional(grafana_url, env.get("ARGUS_GRAFANA_URL")),
+            log_format=cls._pick_str(log_format, env.get("ARGUS_LOG_FORMAT"), DEFAULT_LOG_FORMAT),
             clickhouse_dsn=cls._pick_optional(clickhouse_dsn, env.get("ARGUS_CLICKHOUSE_DSN")),
             fleet_url=cls._pick_optional(fleet_url, env.get("ARGUS_FLEET_URL")),
             fleet_token=cls._pick_optional(fleet_token, env.get("ARGUS_FLEET_TOKEN")),

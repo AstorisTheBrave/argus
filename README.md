@@ -119,6 +119,7 @@ Open the dashboard once with the token and it is remembered in the browser:
 | `cluster_id` / `ARGUS_CLUSTER_ID` | `default` | label for clustered deploys |
 | `enable_per_guild` / `ARGUS_ENABLE_PER_GUILD` | `false` | per-guild analytics path |
 | `otlp_endpoint` / `ARGUS_OTLP_ENDPOINT` | — | also push metrics via OTLP |
+| `log_format` / `ARGUS_LOG_FORMAT` | `text` | set `json` for structured logs on the `argus` logger |
 
 Every option, precedence and parsing rule is in
 [Configuration](https://github.com/AstorisTheBrave/argus/wiki/Configuration).

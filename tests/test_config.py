@@ -151,6 +151,12 @@ def test_fleet_scrape_target() -> None:
     assert cfg.fleet_scrape_target == "10.0.0.5:9191"
 
 
+def test_log_format_default_and_env() -> None:
+    assert ArgusConfig.resolve(environ={}).log_format == "text"
+    assert ArgusConfig.resolve(environ={"ARGUS_LOG_FORMAT": "json"}).log_format == "json"
+    assert ArgusConfig.resolve(log_format="json", environ={}).log_format == "json"
+
+
 def test_is_loopback() -> None:
     assert ArgusConfig.resolve(host="127.0.0.1", environ={}).is_loopback() is True
     assert ArgusConfig.resolve(host="localhost", environ={}).is_loopback() is True
