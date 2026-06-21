@@ -1,0 +1,100 @@
+# Argus (argus-dpy)
+
+> Operational Prometheus / OpenTelemetry metrics for discord.py bots, in one
+> line: `Argus(bot)`. Serves `/metrics` + a live dashboard on the bot's own
+> loop; optional OpenTelemetry push, per-guild ClickHouse analytics, and a
+> standalone multi-tier Fleet control plane. Never puts a guild/user/channel id
+> on a Prometheus label.
+
+This file orients a coding agent setting Argus up for a user. The mechanics are
+deliberately agent-friendly: one-line install, a setup wizard, copy-paste
+examples, a fully typed API (`py.typed`), and error messages that name their own
+fix.
+
+## Get the in-depth docs (clone the wiki)
+
+The deep guides (tutorials, Fleet, Security, Metrics reference, FAQ +
+troubleshooting) live in the GitHub **wiki**, which is a separate git repo. It is
+NOT in the package or the cloned source tree, so clone it for full context:
+
+```bash
+git clone https://github.com/AstorisTheBrave/argus.wiki.git
+```
+
+Then read `Tutorial-Single-Bot.md`, `Tutorial-Fleet.md`, `Fleet.md`,
+`Security.md`, `Metrics-Reference.md`, `FAQ.md`. Browsable at
+https://github.com/AstorisTheBrave/argus/wiki .
+
+## Install
+
+```bash
+pip install argus-dpy          # core: discord.py >= 2.4, Python 3.10+
+pip install "argus-dpy[otlp]"        # OpenTelemetry push
+pip install "argus-dpy[clickhouse]"  # per-guild analytics
+pip install "argus-dpy[fleet]"       # .env autoload for the control plane
+```
+
+**Compatibility (read before installing):** targets upstream **discord.py 2.x**.
+Forks are untested; **Pycord is not supported unmodified** (synchronous
+`add_cog`/`cog_unload`). All forks share the `discord` import name, so only one
+can be installed at a time.
+
+## Single bot (the 80% case)
+
+```python
+from discord.ext import commands
+from argus import Argus
+
+bot = commands.Bot(command_prefix="!", intents=...)
+Argus(bot)   # metrics at /metrics, dashboard at /, port 9191
+```
+
+Protect the dashboard with one env var: `ARGUS_DASHBOARD_AUTH_TOKEN=secret`
+(gates `/` and `/api/*`; `/metrics` stays scrapeable). Every option is a kwarg on
+`Argus(bot)` and a matching `ARGUS_*` env var (kwargs > env > defaults).
+
+- Full option surface, as kwargs: `examples/config_kwargs.py`
+- Every env var: `.env.example`
+
+## Fleet control plane (many bots/regions)
+
+A separate, opt-in service. The fastest setup is the wizard:
+
+```bash
+python -m argus.fleet init     # writes .env + docker-compose.fleet.yml + the member snippet
+docker compose -f docker-compose.fleet.yml up -d
+python -m argus.fleet doctor --url http://fleet-host:9190 --token <token>
+```
+
+Bots opt in with `ARGUS_FLEET_URL` + `ARGUS_FLEET_TOKEN` (+ `ARGUS_FLEET_GROUP`).
+View tiers: Global -> Fleet -> Cluster -> Shard, plus per-guild Analytics when
+`ARGUS_FLEET_CLICKHOUSE_DSN` is set. Secure by default (a public bind without a
+token refuses to start).
+
+## Examples (copy these)
+
+In `examples/` (and `examples/README.md` for the index + dos/don'ts):
+- `basic_bot.py` - minimal single bot.
+- `production_bot.py` - hardened single bot (intents, secrets, auth, logging).
+- `clustered_bot.py` - one process per shard range.
+- `otlp_bot.py` - export to an OpenTelemetry collector.
+- `analytics_bot.py` - per-guild ClickHouse analytics.
+- `fleet_member_bot.py` - opt a bot into a fleet.
+- `config_kwargs.py` - every config option as kwargs.
+- `k8s/bot.yaml`, `k8s/fleet.yaml` - Kubernetes manifests.
+
+## Dos and don'ts (essentials; full list in examples/README.md)
+
+- DO read the token from an env var / secret; never hardcode it. Regenerate if leaked.
+- DO request only the intents you use; `members` is needed for `cached_users` and
+  costs memory (~600-800MB at ~1k guilds).
+- DO set `ARGUS_DASHBOARD_AUTH_TOKEN` for any non-localhost bot.
+- DO run under a restart policy (systemd `Restart=always`, container `restart:
+  unless-stopped`, or k8s) with a memory limit.
+- DO shard (`AutoShardedBot`) as you approach 2,500 guilds/shard; do not shard a
+  small bot prematurely. Give each process a distinct `cluster_id`.
+- DON'T add `guild_id`/`user_id`/`channel_id` as Prometheus labels - Argus forbids
+  it; per-entity questions go to the analytics path.
+- DON'T block the event loop (`await asyncio.sleep`, not `time.sleep`).
+- DON'T expose the fleet control plane publicly without a token (it refuses) and
+  TLS (terminate at a reverse proxy).
