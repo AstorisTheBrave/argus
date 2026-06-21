@@ -54,8 +54,40 @@ or [Fleet at scale](https://github.com/AstorisTheBrave/argus/wiki/Tutorial-Fleet
 the bot's loop once it is running. By default it serves the **dashboard at `/`**
 and **metrics at `/metrics`** on port `9191`. Disable the dashboard with
 `Argus(bot, dashboard=False)`; everything else is opt-in. Instrumentation is
-fail-open: it is counted and swallowed, never raised into your bot.
+fail-open everywhere: event hooks, scrape-time gauges, and even the metrics
+server failing to bind are counted and swallowed, never raised into your bot. The
+`argus_subsystem_up` gauge reports Argus' own health so you can alert when it
+degrades while the bot stays up.
 See [Architecture & invariants](https://github.com/AstorisTheBrave/argus/wiki/Architecture-and-Invariants).
+
+## How Argus works
+
+discord.py events flow through O(1), fail-open hooks into one backend-neutral
+metric registry. Adapters and the HTTP server read from that registry; the core
+never imports an adapter, so backends attach and detach without touching
+collection. Gauges are read live at scrape time (no background poller). An
+optional, separate analytical path drains per-guild events to ClickHouse and is
+never a Prometheus label.
+
+```mermaid
+flowchart TD
+    bot[discord.py bot] -->|events, state| hooks[core hooks and instrumentation]
+    hooks -->|inc / observe / set_info| reg[(MetricRegistry, backend-neutral)]
+    reg --> prom[Prometheus adapter]
+    reg --> otlp[OTLP adapter, optional]
+    hooks -.->|per-guild events| sink[history sink, optional]
+    sink --> ch[(ClickHouse)]
+    prom --> exp[aiohttp server]
+    exp --> m[GET /metrics]
+    exp --> dash[dashboard SPA and /api]
+    prom -.->|snapshot| member[fleet client, optional]
+    member -.->|register, heartbeat| fleet[Fleet control plane]
+```
+
+A bot opts into more by adding kwargs or `ARGUS_*` env vars; with none, only the
+metrics endpoint and dashboard run. For many processes across regions, the
+opt-in [Fleet control plane](#fleet-control-plane-opt-in) aggregates them into
+one view.
 
 ## Minimal setup
 
@@ -99,7 +131,9 @@ per-cluster guild/user/voice/emoji/sticker/channel counts, uptime, registered
 commands, interaction and command rates with success/error split, precise
 app- and prefix-command duration histograms, gateway throughput, shard
 dis/reconnects, log and rate-limit counters. Every counter and histogram carry a
-`cluster` label.
+`cluster` label. Argus also reports its own health: `argus_up`,
+`argus_subsystem_up{subsystem}` (server/fleet/sink), and counters for swallowed
+instrumentation errors and dropped analytical events.
 
 Full list with labels: [Metrics Reference](https://github.com/AstorisTheBrave/argus/wiki/Metrics-Reference).
 
@@ -121,8 +155,10 @@ internals: [History & ClickHouse](https://github.com/AstorisTheBrave/argus/wiki/
 
 ## Grafana, OTLP, clustering
 
-`docker compose up -d` brings up a provisioned Prometheus + Grafana with three
-dashboards. Set `otlp_endpoint` (the `argus-dpy[otlp]` extra) to also push via
+`docker compose up -d` brings up a provisioned Prometheus + Grafana with four
+dashboards (overview, interactions, gateway, and an Argus self-health board) plus
+recording and alerting rules you can tune. Set `otlp_endpoint` (the
+`argus-dpy[otlp]` extra) to also push via
 OpenTelemetry to Datadog, Grafana Cloud, Honeycomb, and the like. Run one Argus
 per process with a distinct `cluster_id` for clustered bots.
 See the [OTLP tutorial](https://github.com/AstorisTheBrave/argus/wiki/Tutorial-OTLP),
@@ -184,9 +220,13 @@ construction and routes per-entity questions to the analytical path instead.
 Set `dashboard_auth_token` for any non-localhost bot; the fleet control plane
 refuses to start on a public bind without a token and is hardened by default
 (rate limits, body caps, security headers, non-root images, SBOM/provenance). The
-no-PII-label guarantee means per-entity data never reaches Prometheus. Full
-guidance: [Security](https://github.com/AstorisTheBrave/argus/wiki/Security).
-Report vulnerabilities privately via [SECURITY.md](SECURITY.md).
+same security headers, body cap, and banner strip apply to the in-process bot
+server too. The no-PII-label guarantee means per-entity data never reaches
+Prometheus. CI runs CodeQL and a pip-audit dependency audit, and each release
+ships a wheel SBOM. Full guidance:
+[Security](https://github.com/AstorisTheBrave/argus/wiki/Security) and the
+[threat model](THREAT_MODEL.md). Report vulnerabilities privately via
+[SECURITY.md](SECURITY.md).
 
 ## Examples
 
