@@ -46,6 +46,7 @@ dev = [
     "pytest-aiohttp",
     "pytest-cov",
     "python-dotenv>=1.0",
+    "hypothesis",
 ]
 
 [tool.hatch.version]
