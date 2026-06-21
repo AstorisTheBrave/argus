@@ -43,9 +43,7 @@ async def test_stream_emits_a_snapshot_event(aiohttp_client: Any) -> None:
 
 
 async def test_stream_rejects_when_at_capacity(aiohttp_client: Any, monkeypatch: Any) -> None:
-    import argus.dashboard.server as ds
-
-    monkeypatch.setattr(ds, "_MAX_SSE_CONNECTIONS", 0)
+    monkeypatch.setattr("argus.dashboard.server._MAX_SSE_CONNECTIONS", 0)
     client = await aiohttp_client(_app())
     resp = await client.get("/api/stream")
     assert resp.status == 503
