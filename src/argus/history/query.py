@@ -31,44 +31,64 @@ class AnalyticsQuery:
         self._client = client
         self._table = table
 
-    async def interaction_volume(self, guild_id: str, *, since_days: int = 30) -> list[Any]:
+    @staticmethod
+    def _scope(params: dict[str, Any], cluster_id: str | None) -> str:
+        """Optional per-cluster (per-bot) filter; parameterised, no SQL injection."""
+        if not cluster_id:
+            return ""
+        params["cluster_id"] = cluster_id
+        return " AND cluster_id = %(cluster_id)s"
+
+    async def interaction_volume(
+        self, guild_id: str, *, since_days: int = 30, cluster_id: str | None = None
+    ) -> list[Any]:
+        params: dict[str, Any] = {"guild_id": guild_id, "days": since_days}
         sql = (
             "SELECT toDate(parseDateTimeBestEffort(ts)) AS day, count() AS count "
-            f"FROM {self._table} WHERE guild_id = %(guild_id)s "
+            f"FROM {self._table} WHERE guild_id = %(guild_id)s"
+            f"{self._scope(params, cluster_id)} "
             "AND parseDateTimeBestEffort(ts) >= now() - INTERVAL %(days)s DAY "
             "GROUP BY day ORDER BY day"
         )
-        result = await self._client.query(
-            sql, parameters={"guild_id": guild_id, "days": since_days}
-        )
+        result = await self._client.query(sql, parameters=params)
         return list(result.result_rows)
 
-    async def top_commands(self, guild_id: str, *, limit: int = 10) -> list[Any]:
+    async def top_commands(
+        self, guild_id: str, *, limit: int = 10, cluster_id: str | None = None
+    ) -> list[Any]:
+        params: dict[str, Any] = {"guild_id": guild_id, "limit": limit}
         sql = (
             f"SELECT command, count() AS count FROM {self._table} "
-            "WHERE guild_id = %(guild_id)s AND event = 'app_command' "
+            f"WHERE guild_id = %(guild_id)s{self._scope(params, cluster_id)} "
+            "AND event = 'app_command' "
             "GROUP BY command ORDER BY count DESC LIMIT %(limit)s"
         )
-        result = await self._client.query(sql, parameters={"guild_id": guild_id, "limit": limit})
+        result = await self._client.query(sql, parameters=params)
         return list(result.result_rows)
 
-    async def command_stats(self, guild_id: str, *, limit: int = 50) -> list[Any]:
+    async def command_stats(
+        self, guild_id: str, *, limit: int = 50, cluster_id: str | None = None
+    ) -> list[Any]:
         """Per-command count + average duration (ms) for a guild."""
+        params: dict[str, Any] = {"guild_id": guild_id, "limit": limit}
         sql = (
             f"SELECT command, count() AS count, avg(duration_ms) AS avg_ms FROM {self._table} "
-            "WHERE guild_id = %(guild_id)s AND event = 'app_command' "
+            f"WHERE guild_id = %(guild_id)s{self._scope(params, cluster_id)} "
+            "AND event = 'app_command' "
             "GROUP BY command ORDER BY count DESC LIMIT %(limit)s"
         )
-        result = await self._client.query(sql, parameters={"guild_id": guild_id, "limit": limit})
+        result = await self._client.query(sql, parameters=params)
         return list(result.result_rows)
 
-    async def avg_duration(self, guild_id: str) -> float:
+    async def avg_duration(self, guild_id: str, *, cluster_id: str | None = None) -> float:
         """Overall average application command duration (ms) for a guild."""
+        params: dict[str, Any] = {"guild_id": guild_id}
         sql = (
             f"SELECT avg(duration_ms) AS avg_ms FROM {self._table} "
-            "WHERE guild_id = %(guild_id)s AND event = 'app_command'"
+            f"WHERE guild_id = %(guild_id)s{self._scope(params, cluster_id)} "
+            "AND event = 'app_command'"
         )
-        result = await self._client.query(sql, parameters={"guild_id": guild_id})
+        result = await self._client.query(sql, parameters=params)
         rows = list(result.result_rows)
         if rows and rows[0] and rows[0][0] is not None:
             return float(rows[0][0])

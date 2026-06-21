@@ -28,7 +28,7 @@ from typing import Any
 
 from argus.history.sink import BatchingSink, Event
 
-COLUMNS = ["ts", "event", "guild_id", "type", "command", "duration_ms"]
+COLUMNS = ["ts", "event", "guild_id", "type", "command", "duration_ms", "cluster_id"]
 _NUMERIC = frozenset({"duration_ms"})
 
 ClientFactory = Callable[[], Awaitable[Any]]
@@ -44,9 +44,15 @@ def _create_table_sql(table: str) -> str:
         "guild_id String, "
         "type LowCardinality(String), "
         "command String, "
-        "duration_ms Float64"
+        "duration_ms Float64, "
+        "cluster_id LowCardinality(String)"
         ") ENGINE = MergeTree() ORDER BY (guild_id, ts)"
     )
+
+
+def _migrate_sql(table: str) -> str:
+    # Idempotent: adds cluster_id to a table created before the column existed.
+    return f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS cluster_id LowCardinality(String)"
 
 
 class ClickHouseSink(BatchingSink):
@@ -77,6 +83,7 @@ class ClickHouseSink(BatchingSink):
                 self._client = await clickhouse_connect.get_async_client(dsn=self._dsn)
         if not self._schema_ready:
             await self._client.command(_create_table_sql(self._table))
+            await self._client.command(_migrate_sql(self._table))
             self._schema_ready = True
         return self._client
 

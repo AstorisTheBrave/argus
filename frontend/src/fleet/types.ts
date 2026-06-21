@@ -3,6 +3,12 @@
 
 export type Health = "up" | "down";
 
+export interface ShardView {
+  shard_id: string;
+  status: Health;
+  latency_seconds: number;
+}
+
 export interface ClusterView {
   number: number;
   identity: string;
@@ -10,6 +16,7 @@ export interface ClusterView {
   status: Health;
   last_seen: string;
   metrics: Record<string, number>;
+  shards?: ShardView[];
 }
 
 export interface FleetGroupView {

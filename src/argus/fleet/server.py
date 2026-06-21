@@ -29,6 +29,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import hmac
+import json
 import logging
 from collections.abc import Awaitable, Callable
 from typing import TYPE_CHECKING, Any
@@ -51,6 +52,7 @@ if TYPE_CHECKING:
     from argus.fleet.config import FleetConfig
     from argus.fleet.registry import Registry
     from argus.fleet.sources.base import FleetDataSource
+    from argus.history.query import AnalyticsQuery
 
 _Handler = Callable[[web.Request], Awaitable[web.StreamResponse]]
 
@@ -190,10 +192,17 @@ async def _read_json(request: web.Request) -> dict[str, object]:
     return payload
 
 
+def _dumps(obj: Any) -> str:
+    return json.dumps(obj, default=str)
+
+
 def build_fleet_app(
-    config: FleetConfig, registry: Registry, source: FleetDataSource
+    config: FleetConfig,
+    registry: Registry,
+    source: FleetDataSource,
+    analytics: AnalyticsQuery | None = None,
 ) -> web.Application:
-    """Build the fleet aiohttp app: member, view, and SPA routes."""
+    """Build the fleet aiohttp app: member, view, SPA, and (optional) analytics."""
     # CORS (if any) sits outside auth so a browser preflight is never gated; the
     # body cap rejects oversized snapshots with 413 before they reach a handler.
     middlewares: list[Middleware] = []
@@ -242,6 +251,7 @@ def build_fleet_app(
                 "namespace": config.namespace,
                 "version": __version__,
                 "auth_required": config.effective_viewer_token() is not None,
+                "analytics_enabled": analytics is not None,
                 "interval": config.heartbeat_interval,
             }
         )
@@ -347,6 +357,40 @@ def build_fleet_app(
         ]
         return web.json_response(out)
 
+    def _analytics_guild(request: web.Request) -> str:
+        # Fail closed: per-guild analytics is sensitive and must not be served
+        # without a viewer token, even on a loopback/insecure plane (invariant 7).
+        if config.effective_viewer_token() is None:
+            raise web.HTTPForbidden(text="analytics requires a viewer token\n")
+        guild_id = request.query.get("guild_id", "")
+        if not guild_id:
+            raise web.HTTPBadRequest(text="guild_id required\n")
+        return guild_id
+
+    async def analytics_volume(request: web.Request) -> web.StreamResponse:
+        assert analytics is not None
+        guild = _analytics_guild(request)
+        rows = await analytics.interaction_volume(guild, cluster_id=request.query.get("cluster"))
+        return web.json_response({"rows": [list(r) for r in rows]}, dumps=_dumps)
+
+    async def analytics_top_commands(request: web.Request) -> web.StreamResponse:
+        assert analytics is not None
+        guild = _analytics_guild(request)
+        rows = await analytics.top_commands(guild, cluster_id=request.query.get("cluster"))
+        return web.json_response({"rows": [list(r) for r in rows]}, dumps=_dumps)
+
+    async def analytics_command_stats(request: web.Request) -> web.StreamResponse:
+        assert analytics is not None
+        guild = _analytics_guild(request)
+        rows = await analytics.command_stats(guild, cluster_id=request.query.get("cluster"))
+        return web.json_response({"rows": [list(r) for r in rows]}, dumps=_dumps)
+
+    async def analytics_avg_duration(request: web.Request) -> web.StreamResponse:
+        assert analytics is not None
+        guild = _analytics_guild(request)
+        avg_ms = await analytics.avg_duration(guild, cluster_id=request.query.get("cluster"))
+        return web.json_response({"avg_ms": avg_ms}, dumps=_dumps)
+
     async def index(_request: web.Request) -> web.StreamResponse:
         index_html = STATIC_DIR / "index.html"
         if not index_html.is_file():
@@ -388,6 +432,11 @@ def build_fleet_app(
     app.router.add_get("/api/fleet/view", fleet_view)
     app.router.add_get("/api/fleet/cluster", cluster_view)
     app.router.add_get("/api/fleet/targets", targets)
+    if analytics is not None:
+        app.router.add_get("/api/fleet/analytics/interaction-volume", analytics_volume)
+        app.router.add_get("/api/fleet/analytics/top-commands", analytics_top_commands)
+        app.router.add_get("/api/fleet/analytics/command-stats", analytics_command_stats)
+        app.router.add_get("/api/fleet/analytics/avg-duration", analytics_avg_duration)
     assets_dir = STATIC_DIR / "assets"
     if assets_dir.is_dir():
         app.router.add_static("/assets/", assets_dir)

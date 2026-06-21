@@ -193,6 +193,7 @@ class Instrumentation:
                     "type": itype,
                     "command": "",
                     "duration_ms": 0.0,
+                    "cluster_id": self._cluster,
                 }
             )
         except Exception:
@@ -213,6 +214,7 @@ class Instrumentation:
                     "type": "",
                     "command": _qualified_name(command),
                     "duration_ms": round((duration or 0.0) * 1000.0, 3),
+                    "cluster_id": self._cluster,
                 }
             )
         except Exception:

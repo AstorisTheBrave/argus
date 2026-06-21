@@ -51,9 +51,9 @@ async def test_sink_creates_table_then_batches_insert() -> None:
     table, rows, columns = fake.inserts[0]
     assert table == "argus_events"
     assert columns == COLUMNS
-    # ts/command default to "", duration_ms is numeric (0.0 when absent).
-    assert rows[0] == ["", "app_command", "1", "", "ping", 12.5]
-    assert rows[1] == ["", "interaction", "2", "x", "", 0.0]
+    # ts/command/cluster_id default to "", duration_ms is numeric (0.0 when absent).
+    assert rows[0] == ["", "app_command", "1", "", "ping", 12.5, ""]
+    assert rows[1] == ["", "interaction", "2", "x", "", 0.0, ""]
     assert fake.closed
 
 
@@ -72,6 +72,14 @@ async def test_top_commands_query() -> None:
     sql, params = fake.queries[0]
     assert "ORDER BY count DESC" in sql
     assert params == {"guild_id": "42", "limit": 5}
+
+
+async def test_query_scoped_by_cluster_id() -> None:
+    fake = FakeClient()
+    await AnalyticsQuery(fake).top_commands("42", limit=5, cluster_id="asia-0")
+    sql, params = fake.queries[0]
+    assert "cluster_id = %(cluster_id)s" in sql
+    assert params == {"guild_id": "42", "limit": 5, "cluster_id": "asia-0"}
 
 
 async def test_command_stats_query() -> None:

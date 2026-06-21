@@ -72,4 +72,18 @@ describe("Cluster", () => {
     expect(screen.getByText(/asia-0/)).toBeTruthy();
     expect(screen.getByText("Trends")).toBeTruthy();
   });
+
+  it("renders a shard grid when shards are present", () => {
+    const withShards: ClusterView = {
+      ...cluster,
+      shards: [
+        { shard_id: "0", status: "up", latency_seconds: 0.08 },
+        { shard_id: "1", status: "down", latency_seconds: 0 },
+      ],
+    };
+    render(<Cluster cluster={withShards} fleet="asia" token={null} />);
+    expect(screen.getByText("Shards")).toBeTruthy();
+    expect(screen.getByText("shard 0")).toBeTruthy();
+    expect(screen.getByText("shard 1")).toBeTruthy();
+  });
 });

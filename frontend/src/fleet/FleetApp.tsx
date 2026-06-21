@@ -3,16 +3,44 @@
 
 import { useState } from "react";
 
+import { Analytics } from "./Analytics";
 import { useFleet } from "./useFleet";
 import { Cluster, Fleet, Global } from "./Views";
 
-// The fleet control plane is a three-tier drill-down: Global -> Fleet -> Cluster.
-// Selection is local state; the live view is re-polled and re-resolved each tick
-// so a cluster going down updates in place without losing the current screen.
-export function FleetApp({ token, version }: { token: string | null; version: string }) {
+// The fleet control plane is a three-tier drill-down: Global -> Fleet -> Cluster
+// -> Shard, plus an optional Analytics view (per-guild, ClickHouse). Selection is
+// local state; the live view is re-polled each tick so a cluster going down
+// updates in place without losing the current screen.
+export function FleetApp({
+  token,
+  version,
+  analyticsEnabled = false,
+}: {
+  token: string | null;
+  version: string;
+  analyticsEnabled?: boolean;
+}) {
   const { view, error } = useFleet(token);
   const [fleetName, setFleetName] = useState<string | null>(null);
   const [clusterNumber, setClusterNumber] = useState<number | null>(null);
+  const [showAnalytics, setShowAnalytics] = useState(false);
+
+  if (showAnalytics) {
+    return (
+      <div className="app fleet">
+        <main className="main">
+          <nav className="fleet-crumbs">
+            <button className="crumb" onClick={() => setShowAnalytics(false)}>
+              Fleet
+            </button>
+            <span className="crumb current">Analytics</span>
+            <span className="nimble-mono fleet-version">Argus Fleet v{version}</span>
+          </nav>
+          <Analytics token={token} />
+        </main>
+      </div>
+    );
+  }
 
   if (!view) {
     return (
@@ -61,6 +89,11 @@ export function FleetApp({ token, version }: { token: string | null; version: st
             <span className="crumb current">
               #{cluster.number}
             </span>
+          )}
+          {analyticsEnabled && (
+            <button className="crumb" onClick={() => setShowAnalytics(true)}>
+              Analytics
+            </button>
           )}
           <span className="nimble-mono fleet-version">Argus Fleet v{version}</span>
         </nav>

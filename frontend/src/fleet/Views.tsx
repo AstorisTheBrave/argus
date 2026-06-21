@@ -123,6 +123,26 @@ export function Cluster({
         {cluster.identity} - last seen {cluster.last_seen}
       </p>
       <RollupCards metrics={cluster.metrics} />
+      {cluster.shards && cluster.shards.length > 0 && (
+        <>
+          <h3>Shards</h3>
+          <div className="fleet-grid">
+            {cluster.shards.map((s) => (
+              <div key={s.shard_id} className={`nimble-glass--flat fleet-card ${s.status}`}>
+                <div className="fleet-card-head">
+                  <span className="fleet-name">shard {s.shard_id}</span>
+                  <span className={`fleet-pill ${s.status === "up" ? "good" : "bad"}`}>
+                    {s.status}
+                  </span>
+                </div>
+                <div className="fleet-card-body nimble-mono">
+                  {formatMetric("latency_seconds", s.latency_seconds)} latency
+                </div>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
       <h3>Trends</h3>
       <div className="trend-grid">
         {TREND_KEYS.map((key) => {
