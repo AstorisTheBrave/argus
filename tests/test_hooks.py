@@ -162,6 +162,12 @@ async def test_hook_failure_is_counted_and_swallowed(env: Env) -> None:
     )
 
 
+def test_count_dropped_increments_history_drop_counter(env: Env) -> None:
+    env.instr.count_dropped()
+    env.instr.count_dropped()
+    assert env.backend.count(env.names.history_events_dropped_total, cluster=C) == 2
+
+
 # --- chained tree handler still runs the original ---
 
 

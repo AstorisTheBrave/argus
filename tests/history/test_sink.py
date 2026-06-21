@@ -49,6 +49,16 @@ async def test_overflow_drops_and_counts() -> None:
     await sink.aclose()
 
 
+async def test_overflow_invokes_drop_hook() -> None:
+    drops = {"n": 0}
+    sink = RecordingSink(batch_size=100, flush_interval=10.0, max_queue=2)
+    sink.set_drop_hook(lambda: drops.__setitem__("n", drops["n"] + 1))
+    for i in range(5):
+        await sink.record({"i": i})
+    assert drops["n"] == 3  # one hook call per dropped event
+    await sink.aclose()
+
+
 async def test_aclose_flushes_remainder() -> None:
     sink = RecordingSink(batch_size=100, flush_interval=10.0)
     await sink.record({"i": 1})
