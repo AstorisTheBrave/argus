@@ -92,7 +92,8 @@ In `examples/` (and `examples/README.md` for the index + dos/don'ts):
 - DO run under a restart policy (systemd `Restart=always`, container `restart:
   unless-stopped`, or k8s) with a memory limit.
 - DO shard (`AutoShardedBot`) as you approach 2,500 guilds/shard; do not shard a
-  small bot prematurely. Give each process a distinct `cluster_id`.
+  small bot prematurely. Give each process a distinct `cluster_id` (always); ports
+  only differ when processes share one host - separate hosts/pods keep 9191.
 - DON'T add `guild_id`/`user_id`/`channel_id` as Prometheus labels - Argus forbids
   it; per-entity questions go to the analytics path.
 - DON'T block the event loop (`await asyncio.sleep`, not `time.sleep`).

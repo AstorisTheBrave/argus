@@ -14,7 +14,7 @@ git clone https://github.com/AstorisTheBrave/argus.wiki.git
 |---|---|
 | [`basic_bot.py`](basic_bot.py) | The minimum: `Argus(bot)` on one process. |
 | [`production_bot.py`](production_bot.py) | A hardened single bot: minimal intents, token from env, dashboard auth, structured logging, graceful shutdown. |
-| [`clustered_bot.py`](clustered_bot.py) | One process per shard range, distinct `cluster_id`/port each. |
+| [`clustered_bot.py`](clustered_bot.py) | One process per shard range. Distinct `cluster_id` always; distinct port only if co-located on one host. |
 | [`otlp_bot.py`](otlp_bot.py) | Push metrics to an OpenTelemetry collector (Datadog, Grafana Cloud, ...). |
 | [`analytics_bot.py`](analytics_bot.py) | Per-guild analytics via ClickHouse (the analytical path). |
 | [`fleet_member_bot.py`](fleet_member_bot.py) | Opt a bot into a Fleet control plane. |
@@ -46,8 +46,12 @@ Run any Python example with `DISCORD_TOKEN=... python examples/<file>.py`.
 - **Don't** shard a small bot prematurely - it adds cache/operational complexity
   for no benefit.
 - **Do** give each process a distinct `cluster_id` the moment you run more than
-  one; counter rates aggregate across the `cluster` label, single-process views
-  filter by it.
+  one (always); counter rates aggregate across the `cluster` label, single-process
+  views filter by it.
+- **Ports:** only co-located processes (same host) need distinct ports
+  (9191, 9192, ...). Processes on **separate hosts/containers/pods keep the
+  default 9191** - different IPs, no collision. Don't hand-allocate a port range
+  across machines.
 
 ### Reliability
 - **Do** run under a restart policy: systemd `Restart=always`, container
