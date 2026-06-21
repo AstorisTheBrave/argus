@@ -92,6 +92,43 @@
       "targets": [
         { "refId": "A", "datasource": { "type": "prometheus", "uid": "argus-prometheus" }, "expr": "cluster:discord_app_command_duration_seconds:p95{cluster=~\"$cluster\"}", "legendFormat": "{{cluster}}" }
       ]
+    },
+    {
+      "type": "row",
+      "title": "Golden signals (RED)",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 21 },
+      "collapsed": false,
+      "panels": []
+    },
+    {
+      "type": "timeseries",
+      "title": "Traffic: app command throughput",
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 22 },
+      "datasource": { "type": "prometheus", "uid": "argus-prometheus" },
+      "fieldConfig": { "defaults": { "unit": "ops", "custom": { "drawStyle": "line", "fillOpacity": 10 } }, "overrides": [] },
+      "targets": [
+        { "refId": "A", "datasource": { "type": "prometheus", "uid": "argus-prometheus" }, "expr": "sum by (cluster) (rate(discord_app_commands_total{cluster=~\"$cluster\"}[5m]))", "legendFormat": "{{cluster}}" }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Errors: app command error ratio",
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 22 },
+      "datasource": { "type": "prometheus", "uid": "argus-prometheus" },
+      "fieldConfig": { "defaults": { "unit": "percentunit", "min": 0, "max": 1, "custom": { "drawStyle": "line", "fillOpacity": 10 } }, "overrides": [] },
+      "targets": [
+        { "refId": "A", "datasource": { "type": "prometheus", "uid": "argus-prometheus" }, "expr": "cluster:discord_app_command_error_ratio:ratio_rate5m{cluster=~\"$cluster\"}", "legendFormat": "{{cluster}}" }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Saturation: dropped analytical events",
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 22 },
+      "datasource": { "type": "prometheus", "uid": "argus-prometheus" },
+      "fieldConfig": { "defaults": { "unit": "ops", "custom": { "drawStyle": "line", "fillOpacity": 10 } }, "overrides": [] },
+      "targets": [
+        { "refId": "A", "datasource": { "type": "prometheus", "uid": "argus-prometheus" }, "expr": "sum by (cluster) (rate(argus_history_events_dropped_total{cluster=~\"$cluster\"}[5m]))", "legendFormat": "{{cluster}}" }
+      ]
     }
   ]
 }
