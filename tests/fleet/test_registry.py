@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import stat
+import sys
 from pathlib import Path
 
 import pytest
@@ -136,6 +138,15 @@ def test_mutations_coalesce_no_write_until_flush(tmp_path: Path) -> None:
 def test_flush_payload_none_when_clean(tmp_path: Path) -> None:
     reg = Registry(state_path=tmp_path / "state.json")
     assert reg.flush_payload() is None  # nothing registered, not dirty
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="POSIX file mode")
+def test_state_file_is_owner_only(tmp_path: Path) -> None:
+    path = tmp_path / "state.json"
+    reg = Registry(state_path=path)
+    reg.register("a", "asia", now=1.0)
+    reg.save()
+    assert stat.S_IMODE(path.stat().st_mode) == 0o600
 
 
 def test_prune_off_by_default(tmp_path: Path) -> None:

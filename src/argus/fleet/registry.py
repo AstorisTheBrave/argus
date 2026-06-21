@@ -27,6 +27,7 @@ history survive a control-plane restart.
 
 from __future__ import annotations
 
+import contextlib
 import json
 import time
 from dataclasses import asdict, dataclass
@@ -220,9 +221,15 @@ class Registry:
         return json.dumps(payload)
 
     def write_payload(self, data: str) -> None:
-        """Write a serialized payload to ``state_path`` atomically (off-loop safe)."""
+        """Write a serialized payload to ``state_path`` atomically (off-loop safe).
+
+        The file is restricted to owner-only (0600): it can hold identities and
+        (with leases) secret digests, so other users must not read it.
+        """
         tmp = self._state_path.with_suffix(self._state_path.suffix + ".tmp")
         tmp.write_text(data, encoding="utf-8")
+        with contextlib.suppress(OSError):  # best-effort; perms must not break persistence
+            tmp.chmod(0o600)
         tmp.replace(self._state_path)
 
     def flush_payload(self) -> str | None:
