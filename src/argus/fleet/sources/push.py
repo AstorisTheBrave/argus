@@ -29,8 +29,8 @@ import math
 from typing import Any
 
 from argus.core.metrics import build_names
-from argus.fleet.model import empty_metrics
-from argus.fleet.registry import Registry
+from argus.fleet.model import ShardView, empty_metrics
+from argus.fleet.registry import STATUS_DOWN, STATUS_UP, Registry
 from argus.fleet.sources.base import ClusterValues, FleetDataSource
 
 
@@ -132,6 +132,37 @@ def derive_metrics(
     return metrics, (errors, commands)
 
 
+def derive_shards(snapshot: dict[str, Any] | None, namespace: str) -> list[ShardView]:
+    """Per-shard up/latency from a snapshot's ``shard_up``/``shard_latency`` series."""
+    if not snapshot:
+        return []
+    names = build_names(namespace)
+    samples = _samples(snapshot)
+    latency: dict[str, float] = {}
+    status: dict[str, str] = {}
+    for s in samples:
+        shard = s.get("labels", {}).get("shard") if isinstance(s.get("labels"), dict) else None
+        if shard is None:
+            continue
+        name = s.get("name")
+        value = _num(s.get("value"))
+        if value is None:
+            continue
+        if name == names.shard_up:
+            status[shard] = STATUS_UP if value >= 1.0 else STATUS_DOWN
+        elif name == names.shard_latency_seconds:
+            latency[shard] = value
+    shard_ids = sorted(set(status) | set(latency), key=lambda x: (len(x), x))
+    return [
+        ShardView(
+            shard_id=shard,
+            status=status.get(shard, STATUS_UP),
+            latency_seconds=latency.get(shard, 0.0),
+        )
+        for shard in shard_ids
+    ]
+
+
 class PushSource(FleetDataSource):
     """Build fleet values from the latest snapshot the registry holds per cluster."""
 
@@ -146,4 +177,5 @@ class PushSource(FleetDataSource):
             metrics, totals = derive_metrics(entry.last_snapshot, self._namespace)
             values.metrics[entry.identity] = metrics
             values.error_totals[entry.identity] = totals
+            values.shards[entry.identity] = derive_shards(entry.last_snapshot, self._namespace)
         return values

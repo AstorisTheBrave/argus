@@ -163,6 +163,15 @@ def error_total_queries(namespace: str = "discord") -> tuple[str, str]:
     )
 
 
+def shard_queries(namespace: str = "discord") -> tuple[str, str]:
+    """Return ``(shard_up_by_cluster_shard, shard_latency_by_cluster_shard)`` PromQL."""
+    n = build_names(namespace)
+    return (
+        f"max by (cluster, shard) ({n.shard_up})",
+        f"max by (cluster, shard) ({n.shard_latency_seconds})",
+    )
+
+
 def catalog_keys(namespace: str = "discord") -> set[str]:
     """The metric keys the catalog covers (must equal METRIC_KEYS)."""
     return {q.key for q in build_queries(namespace)}

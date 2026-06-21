@@ -35,6 +35,7 @@ from argus.fleet.model import (
     ClusterView,
     FleetGroupView,
     FleetView,
+    ShardView,
     empty_metrics,
 )
 from argus.fleet.registry import STATUS_UP, Registry
@@ -55,6 +56,8 @@ class ClusterValues:
 
     metrics: dict[str, dict[str, float]] = field(default_factory=dict)
     error_totals: dict[str, tuple[float, float]] = field(default_factory=dict)
+    # Per-identity shard detail for the cluster drill-down (optional).
+    shards: dict[str, list[ShardView]] = field(default_factory=dict)
 
 
 def _iso(epoch: float) -> str:
@@ -101,6 +104,7 @@ def assemble(registry: Registry, values: ClusterValues) -> FleetView:
                     status=entry.status,
                     last_seen=_iso(entry.last_seen),
                     metrics={k: metrics.get(k, 0.0) for k in METRIC_KEYS},
+                    shards=values.shards.get(entry.identity, []),
                 )
             )
             if entry.status == STATUS_UP:

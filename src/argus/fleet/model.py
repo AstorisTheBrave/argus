@@ -48,6 +48,15 @@ def empty_metrics() -> dict[str, float]:
 
 
 @dataclass(slots=True)
+class ShardView:
+    """One shard within a cluster (the drill-down's deepest tier)."""
+
+    shard_id: str
+    status: str  # "up" | "down"
+    latency_seconds: float = 0.0
+
+
+@dataclass(slots=True)
 class ClusterView:
     """One cluster (a single bot process) as the UI sees it."""
 
@@ -57,6 +66,7 @@ class ClusterView:
     status: str
     last_seen: str
     metrics: dict[str, float] = field(default_factory=empty_metrics)
+    shards: list[ShardView] = field(default_factory=list)
 
 
 @dataclass(slots=True)
