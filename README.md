@@ -242,6 +242,7 @@ for the index + a production dos-and-don'ts):
 - [`fleet_member_bot.py`](examples/fleet_member_bot.py) — opting into a fleet.
 - [`config_kwargs.py`](examples/config_kwargs.py) — every option, as kwargs.
 - [`k8s/`](examples/k8s/) — Kubernetes manifests for a bot and the control plane.
+- [`hosting/`](examples/hosting/) — Docker bot panels (Pterodactyl, PebbleHost, Ori, Railway): egg, start shim, decision tree.
 
 Using a coding agent to get started? Point it at [`llms.txt`](llms.txt) — a
 machine-readable map (including how to clone the wiki for the in-depth guides).

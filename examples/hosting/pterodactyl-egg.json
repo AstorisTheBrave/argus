@@ -1,0 +1,90 @@
+{
+  "_comment": "Pterodactyl egg: a discord.py bot instrumented with argus-dpy. Import via Panel -> Nests -> Import Egg. Argus auto-detects SERVER_PORT, so /metrics binds your primary allocation with no extra config; set the ARGUS_* variables for auth or push.",
+  "meta": { "version": "PTDL_v2", "update_url": null },
+  "exported_at": "2026-06-21T00:00:00+00:00",
+  "name": "discord.py bot (Argus)",
+  "author": "callmeSage0@proton.me",
+  "description": "A Python discord.py bot with argus-dpy observability. Serves /metrics + dashboard on the primary allocation, or pushes via OTLP/Fleet with no inbound port.",
+  "features": null,
+  "docker_images": {
+    "Python 3.12": "ghcr.io/pterodactyl/yolks:python_3.12",
+    "Python 3.11": "ghcr.io/pterodactyl/yolks:python_3.11"
+  },
+  "file_denylist": [],
+  "startup": "python {{BOT_FILE}}",
+  "config": {
+    "files": {},
+    "startup": { "done": "logged in as" },
+    "logs": {},
+    "stop": "^C"
+  },
+  "scripts": {
+    "installation": {
+      "script": "#!/bin/bash\nset -e\ncd /mnt/server\n# Install argus-dpy plus the dotenv extra (so an uploaded .env is auto-loaded)\n# and the otlp extra (for push). Plus your own requirements.txt if present.\npip install --upgrade pip\npip install \"argus-dpy[dotenv,otlp]\"\nif [ -f requirements.txt ]; then pip install -r requirements.txt; fi\necho \"install complete\"",
+      "container": "ghcr.io/pterodactyl/installers:debian",
+      "entrypoint": "bash"
+    }
+  },
+  "variables": [
+    {
+      "name": "Bot file",
+      "description": "The Python file Pterodactyl runs to start your bot.",
+      "env_variable": "BOT_FILE",
+      "default_value": "bot.py",
+      "user_viewable": true,
+      "user_editable": true,
+      "rules": "required|string|max:128",
+      "field_type": "text"
+    },
+    {
+      "name": "Discord token",
+      "description": "Your bot token from the Discord Developer Portal. Treat as a secret.",
+      "env_variable": "DISCORD_TOKEN",
+      "default_value": "",
+      "user_viewable": true,
+      "user_editable": true,
+      "rules": "required|string",
+      "field_type": "text"
+    },
+    {
+      "name": "Dashboard auth token",
+      "description": "Gates the dashboard + /api when the port is publicly reachable. Leave blank only on a private/loopback allocation.",
+      "env_variable": "ARGUS_DASHBOARD_AUTH_TOKEN",
+      "default_value": "",
+      "user_viewable": true,
+      "user_editable": true,
+      "rules": "nullable|string",
+      "field_type": "text"
+    },
+    {
+      "name": "OTLP endpoint (push, optional)",
+      "description": "Push metrics to an OTLP collector / Grafana Cloud instead of being scraped. No inbound port needed.",
+      "env_variable": "ARGUS_OTLP_ENDPOINT",
+      "default_value": "",
+      "user_viewable": true,
+      "user_editable": true,
+      "rules": "nullable|string",
+      "field_type": "text"
+    },
+    {
+      "name": "Fleet URL (push, optional)",
+      "description": "Report to an Argus Fleet control plane for a single multi-bot pane. Outbound-only.",
+      "env_variable": "ARGUS_FLEET_URL",
+      "default_value": "",
+      "user_viewable": true,
+      "user_editable": true,
+      "rules": "nullable|string",
+      "field_type": "text"
+    },
+    {
+      "name": "Fleet token (push, optional)",
+      "description": "The token for the Fleet control plane referenced above.",
+      "env_variable": "ARGUS_FLEET_TOKEN",
+      "default_value": "",
+      "user_viewable": true,
+      "user_editable": true,
+      "rules": "nullable|string",
+      "field_type": "text"
+    }
+  ]
+}
