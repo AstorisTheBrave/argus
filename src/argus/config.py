@@ -38,6 +38,8 @@ DEFAULT_DASHBOARD_INTERVAL = 5
 DEFAULT_FLEET_GROUP = "default"
 DEFAULT_FLEET_STATE_DIR = "."
 DEFAULT_LOG_FORMAT = "text"
+DEFAULT_PUSHGATEWAY_JOB = "argus"
+DEFAULT_PUSHGATEWAY_INTERVAL = 15
 
 _TRUE = frozenset({"1", "true", "yes", "on"})
 _FALSE = frozenset({"0", "false", "no", "off", ""})
@@ -72,6 +74,14 @@ class ArgusConfig:
     namespace: str = DEFAULT_NAMESPACE
     enable_per_guild: bool = False
     otlp_endpoint: str | None = None
+    # Optional Prometheus Pushgateway push (additive; /metrics still served). For
+    # locked hosts that can't be scraped but where you keep a pure-Prometheus
+    # stack. url empty -> disabled. Auth is optional HTTP basic.
+    pushgateway_url: str | None = None
+    pushgateway_job: str = DEFAULT_PUSHGATEWAY_JOB
+    pushgateway_interval: int = DEFAULT_PUSHGATEWAY_INTERVAL
+    pushgateway_username: str | None = None
+    pushgateway_password: str | None = None
     dashboard: bool = True
     dashboard_path: str = DEFAULT_DASHBOARD_PATH
     dashboard_interval: int = DEFAULT_DASHBOARD_INTERVAL
@@ -105,6 +115,11 @@ class ArgusConfig:
         namespace: str | None = None,
         enable_per_guild: bool | None = None,
         otlp_endpoint: str | None = None,
+        pushgateway_url: str | None = None,
+        pushgateway_job: str | None = None,
+        pushgateway_interval: int | None = None,
+        pushgateway_username: str | None = None,
+        pushgateway_password: str | None = None,
         dashboard: bool | None = None,
         dashboard_path: str | None = None,
         dashboard_interval: int | None = None,
@@ -149,6 +164,21 @@ class ArgusConfig:
                 enable_per_guild, env.get("ARGUS_ENABLE_PER_GUILD"), False
             ),
             otlp_endpoint=cls._pick_optional(otlp_endpoint, env.get("ARGUS_OTLP_ENDPOINT")),
+            pushgateway_url=cls._pick_optional(pushgateway_url, env.get("ARGUS_PUSHGATEWAY_URL")),
+            pushgateway_job=cls._pick_str(
+                pushgateway_job, env.get("ARGUS_PUSHGATEWAY_JOB"), DEFAULT_PUSHGATEWAY_JOB
+            ),
+            pushgateway_interval=cls._pick_int(
+                pushgateway_interval,
+                env.get("ARGUS_PUSHGATEWAY_INTERVAL"),
+                DEFAULT_PUSHGATEWAY_INTERVAL,
+            ),
+            pushgateway_username=cls._pick_optional(
+                pushgateway_username, env.get("ARGUS_PUSHGATEWAY_USERNAME")
+            ),
+            pushgateway_password=cls._pick_optional(
+                pushgateway_password, env.get("ARGUS_PUSHGATEWAY_PASSWORD")
+            ),
             dashboard=cls._pick_bool(dashboard, env.get("ARGUS_DASHBOARD"), True),
             dashboard_path=_normalize_path(
                 cls._pick_str(

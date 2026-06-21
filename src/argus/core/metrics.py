@@ -305,6 +305,8 @@ def define_metrics(
                 out.append(GaugeSample(("fleet",), 1.0 if health.fleet_up else 0.0))
             if health.sink_enabled:
                 out.append(GaugeSample(("sink",), 1.0 if health.sink_up else 0.0))
+            if health.pushgateway_enabled:
+                out.append(GaugeSample(("pushgateway",), 1.0 if health.pushgateway_up else 0.0))
             return out
 
         registry.define(

@@ -43,3 +43,5 @@ class HealthState:
     fleet_up: bool = False
     sink_enabled: bool = False
     sink_up: bool = True
+    pushgateway_enabled: bool = False
+    pushgateway_up: bool = False

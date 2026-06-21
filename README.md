@@ -167,10 +167,10 @@ See the [OTLP tutorial](https://github.com/AstorisTheBrave/argus/wiki/Tutorial-O
 [Clustering](https://github.com/AstorisTheBrave/argus/wiki/Clustering), and
 [OTLP internals](https://github.com/AstorisTheBrave/argus/wiki/OTLP).
 
-**No inbound port? Push instead.** OTLP and the Fleet client are outbound-only, so
-they work where you can't expose `/metrics` at all — Docker bot panels
-(Pterodactyl, PebbleHost, Railway). See
-[hosting](examples/hosting/) /
+**No inbound port? Push instead.** OTLP, a Prometheus **Pushgateway**
+(`pushgateway_url`), and the Fleet client are all outbound-only, so they work
+where you can't expose `/metrics` at all — Docker bot panels (Pterodactyl,
+PebbleHost, Railway). See [hosting](examples/hosting/) /
 [Hosting on bot panels](https://github.com/AstorisTheBrave/argus/wiki/Hosting).
 
 ## Fleet control plane (opt-in)
