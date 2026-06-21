@@ -201,6 +201,21 @@ def test_clickhouse_sink_has_drop_hook_wired() -> None:
     )
     assert isinstance(cog.sink, BatchingSink)
     assert cog.sink._on_drop is not None  # cog wired the drop counter
+    assert cog.sink._on_health is not None  # cog wired the health hook
+
+
+def test_sink_health_hook_updates_subsystem_state() -> None:
+    cog = ArgusCog(
+        FakeBot(),
+        ArgusConfig.resolve(
+            enable_per_guild=True, clickhouse_dsn="http://ch:8123", dashboard=False, environ={}
+        ),
+    )
+    assert cog.health.sink_up is True
+    cog._set_sink_health(False)
+    assert cog.health.sink_up is False
+    cog._set_sink_health(True)
+    assert cog.health.sink_up is True
 
 
 async def test_dashboard_can_be_disabled(free_port: int) -> None:
