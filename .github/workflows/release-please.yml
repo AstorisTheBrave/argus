@@ -32,6 +32,7 @@ jobs:
       url: https://pypi.org/p/argus-dpy
     permissions:
       id-token: write # required for PyPI Trusted Publishing
+      contents: write # required to attach the SBOM to the GitHub release
     steps:
       - uses: actions/checkout@v6
         with:
@@ -47,6 +48,19 @@ jobs:
           python -m pip install --upgrade build twine
           python -m build
           twine check dist/*
+      # A CycloneDX SBOM of the published wheel and its runtime dependencies,
+      # built from the wheel itself (so no Node/SPA rebuild) and attached to the
+      # GitHub release. The container images already ship their own SBOMs.
+      - name: Generate SBOM (CycloneDX)
+        run: |
+          python -m pip install cyclonedx-bom
+          python -m venv sbom-venv
+          ./sbom-venv/bin/pip install dist/*.whl
+          cyclonedx-py environment ./sbom-venv -o argus-sbom.cyclonedx.json
+      - name: Attach SBOM to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "${{ needs.release-please.outputs.tag_name }}" argus-sbom.cyclonedx.json --clobber
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
         with:

@@ -30,6 +30,20 @@ jobs:
       - name: Tests
         run: pytest --cov=argus --cov-report=term-missing --cov-fail-under=90
 
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      # Audit the project's resolved dependency tree for known advisories.
+      # Tighten or add ignores here if a transitive advisory has no fix yet.
+      - name: pip-audit
+        uses: pypa/gh-action-pip-audit@v1.1.0
+        with:
+          inputs: .
+
   frontend:
     runs-on: ubuntu-latest
     defaults:
