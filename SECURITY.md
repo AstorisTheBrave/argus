@@ -21,3 +21,14 @@ will be released and the advisory published with credit, if you want it.
   anyone who can reach the port. Set `dashboard_auth_token` and bind to
   localhost or sit behind a reverse proxy for anything public. The per-guild
   analytics path fails closed without a token.
+- See [THREAT_MODEL.md](THREAT_MODEL.md) for the assets, trust boundaries, and
+  the threats Argus defends against.
+
+## Supply chain
+
+- PyPI releases use OIDC Trusted Publishing with attestations (no stored
+  long-lived credentials). A CycloneDX SBOM of the wheel is attached to each
+  GitHub release; the container images ship their own SBOM and max-provenance
+  attestation.
+- CI runs CodeQL and a `pip-audit` dependency audit on every change; Dependabot
+  watches dependencies.
