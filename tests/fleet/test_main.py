@@ -2,10 +2,17 @@
 
 from __future__ import annotations
 
+import json
+import logging
 import os
 from pathlib import Path
 
-from argus.fleet.__main__ import build_source, load_dotenv_if_available, main
+from argus.fleet.__main__ import (
+    build_source,
+    configure_logging,
+    load_dotenv_if_available,
+    main,
+)
 from argus.fleet.config import FleetConfig
 from argus.fleet.sources.composite import CompositeSource
 from argus.fleet.sources.push import PushSource
@@ -42,3 +49,24 @@ def test_load_dotenv_from_explicit_file(tmp_path: Path) -> None:
 
 def test_load_dotenv_missing_file_is_noop() -> None:
     assert load_dotenv_if_available(environ={"ARGUS_FLEET_ENV_FILE": "/no/such/file.env"}) is False
+
+
+def test_configure_logging_json_emits_json(capsys: object) -> None:
+    try:
+        configure_logging("json")
+        logging.getLogger("argus.fleet").warning("hello %s", "world")
+    finally:
+        logging.getLogger().handlers.clear()
+    err = capsys.readouterr().err  # type: ignore[attr-defined]
+    payload = json.loads(err.strip().splitlines()[-1])
+    assert payload["message"] == "hello world"
+    assert payload["level"] == "WARNING"
+
+
+def test_configure_logging_text_is_not_json() -> None:
+    try:
+        configure_logging("text")
+        handler = logging.getLogger().handlers[0]
+        assert not isinstance(handler.formatter, type(None))
+    finally:
+        logging.getLogger().handlers.clear()

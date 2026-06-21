@@ -101,6 +101,9 @@ class FleetConfig:
     # Trust X-Forwarded-For (only when behind a known reverse proxy) so rate
     # limits and conflict detection key on the real client IP, not the proxy's.
     trusted_proxy: bool = False
+    # Log output format for the service: "text" (default) or "json" (structured,
+    # for log pipelines).
+    log_format: str = "text"
 
     @classmethod
     def resolve(
@@ -125,6 +128,7 @@ class FleetConfig:
         heartbeat_burst: int | None = None,
         retention_days: int | None = None,
         trusted_proxy: bool | None = None,
+        log_format: str | None = None,
         environ: dict[str, str] | None = None,
     ) -> FleetConfig:
         """Build a config from kwargs, falling back to env, then defaults.
@@ -187,6 +191,7 @@ class FleetConfig:
             trusted_proxy=cls._pick_bool(
                 trusted_proxy, env.get("ARGUS_FLEET_TRUSTED_PROXY"), False
             ),
+            log_format=cls._pick_str(log_format, env.get("ARGUS_FLEET_LOG_FORMAT"), "text"),
         )
 
     def is_loopback(self) -> bool:

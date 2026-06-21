@@ -30,7 +30,11 @@ LABEL org.opencontainers.image.licenses="AGPL-3.0-or-later"
 COPY --from=build /src/dist/*.whl /tmp/
 RUN pip install --no-cache-dir /tmp/*.whl && rm -rf /tmp/*.whl
 COPY examples/basic_bot.py /app/bot.py
+RUN useradd --system --uid 10001 argus
 WORKDIR /app
 ENV ARGUS_HOST=0.0.0.0
 EXPOSE 9191
+USER argus
+HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
+    CMD ["python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:9191/healthz').status==200 else 1)"]
 CMD ["python", "bot.py"]

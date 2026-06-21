@@ -75,6 +75,11 @@ def test_trusted_proxy_default_and_env() -> None:
     assert FleetConfig.resolve(environ={"ARGUS_FLEET_TRUSTED_PROXY": "1"}).trusted_proxy is True
 
 
+def test_log_format_default_and_env() -> None:
+    assert FleetConfig.resolve(environ={}).log_format == "text"
+    assert FleetConfig.resolve(environ={"ARGUS_FLEET_LOG_FORMAT": "json"}).log_format == "json"
+
+
 def test_abuse_cap_defaults_and_env() -> None:
     cfg = FleetConfig.resolve(environ={})
     assert cfg.max_clusters == 5000

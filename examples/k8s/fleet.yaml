@@ -1,0 +1,78 @@
+# Argus Fleet control plane on Kubernetes.
+#
+# A StatefulSet gives the pod a stable name (argus-fleet-0), which we feed to the
+# registry state via a PVC so per-fleet numbers survive restarts and reschedules.
+# The token comes from a Secret. Adjust the namespace/storage class to taste.
+#
+#   kubectl create secret generic argus-fleet \
+#     --from-literal=token="$(python -m argus.fleet init --out-dir /tmp >/dev/null; openssl rand -base64 32)"
+#   kubectl apply -f fleet.yaml
+#
+# Members (your bots) then set ARGUS_FLEET_URL to the Service and the same token.
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: argus-fleet
+  labels: { app: argus-fleet }
+spec:
+  selector: { app: argus-fleet }
+  ports:
+    - name: http
+      port: 9190
+      targetPort: 9190
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: argus-fleet
+spec:
+  serviceName: argus-fleet
+  replicas: 1 # the registry is single-writer; do not scale beyond 1
+  selector:
+    matchLabels: { app: argus-fleet }
+  template:
+    metadata:
+      labels: { app: argus-fleet }
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        fsGroup: 10001 # so the mounted PVC is writable by the non-root user
+      containers:
+        - name: argus-fleet
+          image: ghcr.io/astoristhebrave/argus-fleet:latest # pin a version in prod
+          ports:
+            - containerPort: 9190
+          env:
+            - name: ARGUS_FLEET_TOKEN
+              valueFrom:
+                secretKeyRef: { name: argus-fleet, key: token }
+            - name: ARGUS_FLEET_STATE
+              value: /data/argus-fleet-state.json
+            - name: ARGUS_FLEET_LOG_FORMAT
+              value: json
+            # Behind an ingress/proxy, trust the forwarded client IP:
+            # - name: ARGUS_FLEET_TRUSTED_PROXY
+            #   value: "1"
+          volumeMounts:
+            - name: state
+              mountPath: /data
+          readinessProbe:
+            httpGet: { path: /readyz, port: 9190 }
+            initialDelaySeconds: 5
+          livenessProbe:
+            httpGet: { path: /healthz, port: 9190 }
+            initialDelaySeconds: 10
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: ["ALL"] }
+  volumeClaimTemplates:
+    - metadata:
+        name: state
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 1Gi
