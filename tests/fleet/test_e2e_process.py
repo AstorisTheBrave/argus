@@ -7,6 +7,7 @@ in-process aiohttp test client.
 
 from __future__ import annotations
 
+import contextlib
 import json
 import os
 import socket
@@ -48,13 +49,11 @@ def _wait_healthy(base: str, proc: subprocess.Popen[bytes], timeout: float = 20.
     while time.monotonic() < deadline:
         if proc.poll() is not None:
             raise AssertionError(f"control plane exited early (code {proc.returncode})")
-        try:
+        with contextlib.suppress(urllib.error.URLError, ConnectionError, OSError):
             status, _ = _get(f"{base}/healthz")
             if status == 200:
                 return
-        except (urllib.error.URLError, ConnectionError, OSError):
-            pass
-        time.sleep(0.2)
+        time.sleep(0.2)  # not up yet; poll again
     raise AssertionError("control plane did not become healthy in time")
 
 
