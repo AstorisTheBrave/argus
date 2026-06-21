@@ -101,6 +101,14 @@ async def test_split_tokens_gate_their_surfaces(aiohttp_client: Any, tmp_path: P
     assert (await client.get("/api/fleet/view?token=ing")).status == 401
 
 
+async def test_multiple_tokens_accepted_for_rotation(aiohttp_client: Any, tmp_path: Path) -> None:
+    # Both the new and old token authenticate while a rotation is in flight.
+    client = await aiohttp_client(_app(tmp_path, token="new,old"))
+    assert (await client.get("/api/fleet/view?token=new")).status == 200
+    assert (await client.get("/api/fleet/view?token=old")).status == 200
+    assert (await client.get("/api/fleet/view?token=gone")).status == 401
+
+
 async def test_register_with_token(aiohttp_client: Any, tmp_path: Path) -> None:
     client = await aiohttp_client(_app(tmp_path, token="secret"))
     resp = await client.post(

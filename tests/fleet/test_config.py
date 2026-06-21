@@ -140,20 +140,28 @@ def test_token_env_beats_token_file(tmp_path: Path) -> None:
 def test_split_tokens_env_and_effective() -> None:
     env = {"ARGUS_FLEET_INGEST_TOKEN": "ing", "ARGUS_FLEET_VIEWER_TOKEN": "view"}
     cfg = FleetConfig.resolve(environ=env)
-    assert cfg.effective_ingest_token() == "ing"
-    assert cfg.effective_viewer_token() == "view"
+    assert cfg.effective_ingest_tokens() == ("ing",)
+    assert cfg.effective_viewer_tokens() == ("view",)
 
 
 def test_shared_token_is_fallback_for_both() -> None:
     cfg = FleetConfig.resolve(token="shared", environ={})
-    assert cfg.effective_ingest_token() == "shared"
-    assert cfg.effective_viewer_token() == "shared"
+    assert cfg.effective_ingest_tokens() == ("shared",)
+    assert cfg.effective_viewer_tokens() == ("shared",)
 
 
 def test_specific_token_beats_shared_per_surface() -> None:
     cfg = FleetConfig.resolve(token="shared", ingest_token="ing", environ={})
-    assert cfg.effective_ingest_token() == "ing"
-    assert cfg.effective_viewer_token() == "shared"
+    assert cfg.effective_ingest_tokens() == ("ing",)
+    assert cfg.effective_viewer_tokens() == ("shared",)
+
+
+def test_token_list_for_rotation() -> None:
+    # Comma-separated = several accepted tokens (rotate: add new, drop old later).
+    cfg = FleetConfig.resolve(token="new, old ,", environ={})
+    assert cfg.effective_ingest_tokens() == ("new", "old")
+    assert cfg.effective_viewer_tokens() == ("new", "old")
+    assert FleetConfig.resolve(environ={}).effective_ingest_tokens() == ()
 
 
 def test_is_loopback() -> None:

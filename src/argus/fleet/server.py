@@ -88,11 +88,22 @@ def _client_ip(request: web.Request, trusted_proxy: bool) -> str:
     return request.remote or "unknown"
 
 
-def _make_fleet_auth_middleware(ingest_token: str | None, viewer_token: str | None) -> Middleware:
-    """Path-aware auth: ingest paths need the ingest token, the rest the viewer.
+def _token_ok(provided: str | None, accepted: tuple[str, ...]) -> bool:
+    """Constant-time check that ``provided`` matches any accepted token."""
+    if provided is None:
+        return False
+    # Compare against every token (no short-circuit on content) for rotation.
+    return any(hmac.compare_digest(provided, token) for token in accepted)
 
-    A surface whose token is ``None`` is open (used for loopback/insecure dev).
-    The comparison is constant-time. Health paths are never gated.
+
+def _make_fleet_auth_middleware(
+    ingest_tokens: tuple[str, ...], viewer_tokens: tuple[str, ...]
+) -> Middleware:
+    """Path-aware auth: ingest paths need an ingest token, the rest a viewer token.
+
+    Each surface accepts a *set* of tokens so a token can be rotated with no
+    downtime. An empty set means that surface is open (loopback/insecure dev).
+    Comparison is constant-time. Health paths are never gated.
     """
 
     @web.middleware
@@ -100,11 +111,10 @@ def _make_fleet_auth_middleware(ingest_token: str | None, viewer_token: str | No
         path = request.path
         if path in _OPEN_PATHS:
             return await handler(request)
-        required = ingest_token if path in _INGEST_PATHS else viewer_token
-        if required is None:
+        accepted = ingest_tokens if path in _INGEST_PATHS else viewer_tokens
+        if not accepted:
             return await handler(request)
-        provided = _extract_token(request)
-        if provided is not None and hmac.compare_digest(provided, required):
+        if _token_ok(_extract_token(request), accepted):
             return await handler(request)
         raise web.HTTPUnauthorized(text="unauthorized\n")
 
@@ -172,7 +182,7 @@ def ensure_secure_bind(config: FleetConfig) -> None:
         return
     # Both surfaces must be authenticated on a public bind: an unprotected ingest
     # or viewer surface is an open door.
-    if config.effective_ingest_token() is None or config.effective_viewer_token() is None:
+    if not config.effective_ingest_tokens() or not config.effective_viewer_tokens():
         raise RuntimeError(
             f"refusing to bind {config.host!r} without a token: set ARGUS_FLEET_TOKEN "
             "(or ARGUS_FLEET_INGEST_TOKEN + ARGUS_FLEET_VIEWER_TOKEN, or *_FILE), bind to "
@@ -210,7 +220,7 @@ def build_fleet_app(
         middlewares.append(_make_cors_middleware(config.cors_origins))
     middlewares.append(
         _make_fleet_auth_middleware(
-            config.effective_ingest_token(), config.effective_viewer_token()
+            config.effective_ingest_tokens(), config.effective_viewer_tokens()
         )
     )
     app = web.Application(middlewares=middlewares, client_max_size=config.max_body_bytes)
@@ -250,7 +260,7 @@ def build_fleet_app(
                 "fleet": True,
                 "namespace": config.namespace,
                 "version": __version__,
-                "auth_required": config.effective_viewer_token() is not None,
+                "auth_required": bool(config.effective_viewer_tokens()),
                 "analytics_enabled": analytics is not None,
                 "interval": config.heartbeat_interval,
             }
@@ -360,7 +370,7 @@ def build_fleet_app(
     def _analytics_guild(request: web.Request) -> str:
         # Fail closed: per-guild analytics is sensitive and must not be served
         # without a viewer token, even on a loopback/insecure plane (invariant 7).
-        if config.effective_viewer_token() is None:
+        if not config.effective_viewer_tokens():
             raise web.HTTPForbidden(text="analytics requires a viewer token\n")
         guild_id = request.query.get("guild_id", "")
         if not guild_id:
