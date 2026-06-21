@@ -40,6 +40,7 @@ from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 
 from argus import __version__
 from argus.dashboard.server import STATIC_DIR
+from argus.fleet.crypto import generate_secret, hash_secret, verify_secret
 from argus.fleet.metrics import FleetMetrics
 from argus.fleet.ratelimit import KeyedRateLimiter
 from argus.fleet.sources.base import ClusterValues, assemble
@@ -266,6 +267,21 @@ def build_fleet_app(
             }
         )
 
+    def _lease_ok(identity: str, presented: str) -> bool:
+        """True if the presented lease matches the stored one, or none is enforced.
+
+        With ``require_lease`` off, leases are issued but never gates. With it on,
+        a known identity that already holds a lease must present the matching
+        secret - so a second process (even with the ingest token) cannot take
+        over the slot.
+        """
+        if not config.require_lease:
+            return True
+        entry = registry.get(identity)
+        if entry is None or not entry.lease_hash:
+            return True  # first claim / no lease yet (trust-on-first-use)
+        return verify_secret(presented, entry.lease_hash, config.secret_pepper)
+
     async def register(request: web.Request) -> web.StreamResponse:
         body = await _read_json(request)
         identity = str(body.get("identity") or "")
@@ -275,13 +291,19 @@ def build_fleet_app(
             raise web.HTTPTooManyRequests(text="register rate exceeded\n")
         if not registry.knows(identity) and registry.count() >= config.max_clusters:
             raise web.HTTPForbidden(text="fleet cluster cap reached\n")
+        if not _lease_ok(identity, str(body.get("lease") or "")):
+            raise web.HTTPConflict(text="identity is leased to another holder\n")
         _note_identity(identity, request)
         fleet = str(body.get("fleet") or "default")
         version = str(body.get("version") or "")
         scrape_target = str(body.get("scrape_target") or "")
         number = registry.register(identity, fleet, version, scrape_target=scrape_target)
+        # (Re)issue a lease secret on every register and return it once; the member
+        # persists it and presents it on heartbeats. Stored only as an HMAC digest.
+        lease = generate_secret()
+        registry.set_lease(identity, hash_secret(lease, config.secret_pepper))
         metrics.registrations.inc()
-        return web.json_response({"number": number})
+        return web.json_response({"number": number, "lease": lease})
 
     async def heartbeat(request: web.Request) -> web.StreamResponse:
         body = await _read_json(request)
@@ -290,6 +312,8 @@ def build_fleet_app(
             raise web.HTTPBadRequest(text="identity required\n")
         if not heartbeat_limiter.allow(identity):
             raise web.HTTPTooManyRequests(text="heartbeat rate exceeded\n")
+        if not _lease_ok(identity, str(body.get("lease") or "")):
+            raise web.HTTPConflict(text="identity is leased to another holder\n")
         _note_identity(identity, request)
         snapshot = body.get("snapshot")
         registry.heartbeat(identity, snapshot if isinstance(snapshot, dict) else None)

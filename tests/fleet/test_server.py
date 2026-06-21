@@ -34,7 +34,7 @@ async def test_register_returns_number(aiohttp_client: Any, tmp_path: Path) -> N
     client = await aiohttp_client(_app(tmp_path))
     resp = await client.post("/fleet/register", json={"identity": "a", "fleet": "asia"})
     assert resp.status == 200
-    assert (await resp.json()) == {"number": 1}
+    assert (await resp.json())["number"] == 1
 
 
 async def test_heartbeat_204_and_view_shape(aiohttp_client: Any, tmp_path: Path) -> None:
@@ -107,6 +107,53 @@ async def test_multiple_tokens_accepted_for_rotation(aiohttp_client: Any, tmp_pa
     assert (await client.get("/api/fleet/view?token=new")).status == 200
     assert (await client.get("/api/fleet/view?token=old")).status == 200
     assert (await client.get("/api/fleet/view?token=gone")).status == 401
+
+
+async def test_register_returns_a_lease(aiohttp_client: Any, tmp_path: Path) -> None:
+    client = await aiohttp_client(_app(tmp_path))
+    body = await (await client.post("/fleet/register", json={"identity": "a"})).json()
+    assert isinstance(body["lease"], str) and body["lease"]
+
+
+async def test_lease_enforced_blocks_takeover(aiohttp_client: Any, tmp_path: Path) -> None:
+    client = await aiohttp_client(_app(tmp_path, require_lease=True, secret_pepper="pep"))
+    reg = await (await client.post("/fleet/register", json={"identity": "a"})).json()
+    lease = reg["lease"]
+    # Correct lease -> heartbeat accepted.
+    ok = await client.post("/fleet/heartbeat", json={"identity": "a", "lease": lease})
+    assert ok.status == 204
+    # Wrong/absent lease for a leased identity -> 409 (cannot take it over).
+    assert (
+        await client.post("/fleet/heartbeat", json={"identity": "a", "lease": "nope"})
+    ).status == 409
+    assert (await client.post("/fleet/heartbeat", json={"identity": "a"})).status == 409
+    # A second process trying to re-register without the lease -> 409.
+    assert (await client.post("/fleet/register", json={"identity": "a"})).status == 409
+
+
+async def test_lease_rotates_on_reregister_with_valid_lease(
+    aiohttp_client: Any, tmp_path: Path
+) -> None:
+    client = await aiohttp_client(_app(tmp_path, require_lease=True, secret_pepper="pep"))
+    first = (await (await client.post("/fleet/register", json={"identity": "a"})).json())["lease"]
+    second = (
+        await (await client.post("/fleet/register", json={"identity": "a", "lease": first})).json()
+    )["lease"]
+    assert second != first  # rotated
+    # The old lease no longer works; the new one does.
+    assert (
+        await client.post("/fleet/heartbeat", json={"identity": "a", "lease": first})
+    ).status == 409
+    assert (
+        await client.post("/fleet/heartbeat", json={"identity": "a", "lease": second})
+    ).status == 204
+
+
+async def test_lease_not_enforced_by_default(aiohttp_client: Any, tmp_path: Path) -> None:
+    # require_lease off: a heartbeat without a lease is fine (legacy behaviour).
+    client = await aiohttp_client(_app(tmp_path))
+    await client.post("/fleet/register", json={"identity": "a"})
+    assert (await client.post("/fleet/heartbeat", json={"identity": "a"})).status == 204
 
 
 async def test_register_with_token(aiohttp_client: Any, tmp_path: Path) -> None:

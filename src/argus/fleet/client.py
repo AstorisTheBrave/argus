@@ -45,19 +45,39 @@ log = logging.getLogger("argus")
 SnapshotProvider = Callable[[], dict[str, Any]]
 
 _IDENTITY_FILE = "argus-fleet-id"
+_LEASE_FILE = "argus-fleet-lease"
 
 
 class FleetClient:
     """Registers with and heartbeats to a fleet control plane, failing open."""
 
-    __slots__ = ("_config", "_heartbeat_interval", "_identity", "_session", "_task")
+    __slots__ = ("_config", "_heartbeat_interval", "_identity", "_lease", "_session", "_task")
 
     def __init__(self, config: ArgusConfig, heartbeat_interval: float = 15) -> None:
         self._config = config
         self._heartbeat_interval = heartbeat_interval
         self._identity = self._resolve_identity()
+        self._lease = self._load_lease()  # persisted lease secret, if any
         self._session: aiohttp.ClientSession | None = None
         self._task: asyncio.Task[None] | None = None
+
+    def _lease_path(self) -> Path:
+        return Path(self._config.fleet_state_dir) / _LEASE_FILE
+
+    def _load_lease(self) -> str | None:
+        with contextlib.suppress(OSError):
+            path = self._lease_path()
+            if path.exists():
+                return path.read_text(encoding="utf-8").strip() or None
+        return None
+
+    def _store_lease(self, lease: str) -> None:
+        self._lease = lease
+        with contextlib.suppress(OSError):  # best-effort; never block the bot
+            path = self._lease_path()
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(lease, encoding="utf-8")
+            path.chmod(0o600)
 
     def _resolve_identity(self) -> str:
         """The stable identity: ``fleet_id``, else ``cluster_id``, else a UUID.
@@ -118,12 +138,18 @@ class FleetClient:
             }
             if self._config.fleet_scrape_target:
                 body["scrape_target"] = self._config.fleet_scrape_target
+            if self._lease:  # prove we hold the current lease so we may re-claim it
+                body["lease"] = self._lease
             async with self._session.post(
                 f"{self._config.fleet_url}/fleet/register",
                 json=body,
                 headers=self._headers(),
             ) as resp:
                 resp.raise_for_status()
+                data = await resp.json()
+                lease = data.get("lease") if isinstance(data, dict) else None
+                if isinstance(lease, str) and lease:
+                    self._store_lease(lease)  # persist the (re)issued lease secret
         except Exception as exc:  # fail open: never let fleet wiring touch the bot
             log.debug("argus fleet register failed (will retry via heartbeat): %s", exc)
 
@@ -140,6 +166,8 @@ class FleetClient:
             return
         try:
             body: dict[str, Any] = {"identity": self._identity}
+            if self._lease:
+                body["lease"] = self._lease
             if snapshot_provider is not None:
                 # A broken snapshot provider must not kill the loop either.
                 body["snapshot"] = snapshot_provider()

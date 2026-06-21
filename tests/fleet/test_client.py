@@ -84,6 +84,25 @@ async def test_register_and_heartbeat_round_trip(aiohttp_server: Any, tmp_path: 
     await client.aclose()
 
 
+async def test_client_persists_and_sends_lease(aiohttp_server: Any, tmp_path: Path) -> None:
+    registry = Registry(tmp_path / "server-state.json")
+    config = FleetConfig.resolve(require_lease=True, secret_pepper="pep", environ={})
+    server = await aiohttp_server(build_fleet_app(config, registry, PushSource()))
+    url = str(server.make_url("")).rstrip("/")
+
+    client = FleetClient(_member_config(url, tmp_path), heartbeat_interval=0.01)
+    await client.start(lambda: {"metrics": {}})
+    # The lease issued at register is persisted owner-only and reused on heartbeat.
+    assert (tmp_path / "argus-fleet-lease").is_file()
+    for _ in range(50):
+        await asyncio.sleep(0.01)
+        if registry.entries() and registry.entries()[0].last_snapshot is not None:
+            break
+    # Heartbeats were accepted (lease presented), so the snapshot landed.
+    assert registry.entries()[0].last_snapshot == {"metrics": {}}
+    await client.aclose()
+
+
 async def test_fail_open_on_broken_snapshot_provider(aiohttp_server: Any, tmp_path: Path) -> None:
     registry = Registry(tmp_path / "server-state.json")
     app = build_fleet_app(FleetConfig.resolve(environ={}), registry, PushSource())

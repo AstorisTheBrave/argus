@@ -107,6 +107,10 @@ class FleetConfig:
     # Log output format for the service: "text" (default) or "json" (structured,
     # for log pipelines).
     log_format: str = "text"
+    # Per-identity lease secrets: require_lease enforces them (opt-in migration);
+    # secret_pepper keys the at-rest HMAC of the lease (a separate boundary).
+    require_lease: bool = False
+    secret_pepper: str | None = None
 
     @classmethod
     def resolve(
@@ -133,6 +137,8 @@ class FleetConfig:
         retention_days: int | None = None,
         trusted_proxy: bool | None = None,
         log_format: str | None = None,
+        require_lease: bool | None = None,
+        secret_pepper: str | None = None,
         environ: dict[str, str] | None = None,
     ) -> FleetConfig:
         """Build a config from kwargs, falling back to env, then defaults.
@@ -199,6 +205,14 @@ class FleetConfig:
                 trusted_proxy, env.get("ARGUS_FLEET_TRUSTED_PROXY"), False
             ),
             log_format=cls._pick_str(log_format, env.get("ARGUS_FLEET_LOG_FORMAT"), "text"),
+            require_lease=cls._pick_bool(
+                require_lease, env.get("ARGUS_FLEET_REQUIRE_LEASE"), False
+            ),
+            secret_pepper=cls._pick_secret(
+                secret_pepper,
+                env.get("ARGUS_FLEET_SECRET_PEPPER"),
+                env.get("ARGUS_FLEET_SECRET_PEPPER_FILE"),
+            ),
         )
 
     def is_loopback(self) -> bool:
