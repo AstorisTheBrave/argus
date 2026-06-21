@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.4.1](https://github.com/AstorisTheBrave/argus/compare/v0.4.0...v0.4.1) (2026-06-21)
+
+
+### Features
+
+* **fleet:** add a shard tier under clusters ([#32](https://github.com/AstorisTheBrave/argus/issues/32)) ([aeafa51](https://github.com/AstorisTheBrave/argus/commit/aeafa51d487c3f75396e3d4194ff698080bf635e))
+* **fleet:** per-guild analytics in the control-plane pane ([#33](https://github.com/AstorisTheBrave/argus/issues/33)) ([06b921f](https://github.com/AstorisTheBrave/argus/commit/06b921f70b7a74651cd91972747c044417a4397c))
+
+
+### Documentation
+
+* add llms.txt and production examples (every setup + dos/don'ts) ([#35](https://github.com/AstorisTheBrave/argus/issues/35)) ([0d5d323](https://github.com/AstorisTheBrave/argus/commit/0d5d323d396e69bd3e4eb1b082ffe0cf15aaaf09))
+* **readme:** add Security and Examples sections, release-notes links ([#30](https://github.com/AstorisTheBrave/argus/issues/30)) ([e80f4ee](https://github.com/AstorisTheBrave/argus/commit/e80f4ee5f90eaab6bf27c4e5880a2b2ef1b54dce))
+
 ## [0.4.0](https://github.com/AstorisTheBrave/argus/compare/v0.3.1...v0.4.0) (2026-06-21)
 
 
