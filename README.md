@@ -173,11 +173,31 @@ outage never touches your bot loop. Full guide and deployment:
 Prometheus at scale and are useless to visualise. Argus forbids them by
 construction and routes per-entity questions to the analytical path instead.
 
+## Security
+
+Set `dashboard_auth_token` for any non-localhost bot; the fleet control plane
+refuses to start on a public bind without a token and is hardened by default
+(rate limits, body caps, security headers, non-root images, SBOM/provenance). The
+no-PII-label guarantee means per-entity data never reaches Prometheus. Full
+guidance: [Security](https://github.com/AstorisTheBrave/argus/wiki/Security).
+Report vulnerabilities privately via [SECURITY.md](SECURITY.md).
+
+## Examples
+
+Runnable examples in [`examples/`](examples/):
+
+- [`basic_bot.py`](examples/basic_bot.py) — one bot, one line.
+- [`clustered_bot.py`](examples/clustered_bot.py) — one process per shard range.
+- [`fleet_member_bot.py`](examples/fleet_member_bot.py) — opting into a fleet.
+- [`config_kwargs.py`](examples/config_kwargs.py) — every option, as kwargs.
+- [`k8s/fleet.yaml`](examples/k8s/fleet.yaml) — the control plane on Kubernetes.
+
 ## Contributing & license
 
 Contributions are accepted under the DCO; see [CONTRIBUTING.md](CONTRIBUTING.md).
 Licensed under **AGPL-3.0-or-later** (network use counts as distribution) — see
-[LICENSE](LICENSE).
+[LICENSE](LICENSE). Release notes: [CHANGELOG.md](CHANGELOG.md) /
+[Releases](https://github.com/AstorisTheBrave/argus/releases).
 
 ---
 
