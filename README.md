@@ -96,8 +96,9 @@ New here? Start with the [FAQ](https://github.com/AstorisTheBrave/argus/wiki/FAQ
 Aggregate, bounded-cardinality metrics: per-shard latency and up state,
 per-cluster guild/user/voice/emoji/sticker/channel counts, uptime, registered
 commands, interaction and command rates with success/error split, precise
-command-duration histogram, gateway throughput, shard dis/reconnects, log and
-rate-limit counters. Every counter and the histogram carry a `cluster` label.
+app- and prefix-command duration histograms, gateway throughput, shard
+dis/reconnects, log and rate-limit counters. Every counter and histogram carry a
+`cluster` label.
 
 Full list with labels: [Metrics Reference](https://github.com/AstorisTheBrave/argus/wiki/Metrics-Reference).
 

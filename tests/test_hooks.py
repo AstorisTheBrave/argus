@@ -13,6 +13,7 @@ from tests.conftest import Env
 _LISTENER_NAMES = {
     "on_interaction",
     "on_app_command_completion",
+    "on_command",
     "on_command_completion",
     "on_command_error",
     "on_socket_event_type",
@@ -110,6 +111,29 @@ async def test_prefix_command_completion_and_error(env: Env) -> None:
         )
         == 1
     )
+
+
+async def test_prefix_command_duration_timed(env: Env) -> None:
+    # on_command starts the timer; on_command_completion records the duration.
+    ctx = SimpleNamespace(
+        command=SimpleNamespace(qualified_name="sync"),
+        message=SimpleNamespace(id=4242),
+    )
+    await env.instr.on_command(ctx)
+    await env.instr.on_command_completion(ctx)
+    observed = env.backend.observations[env.names.command_duration_seconds]
+    assert len(observed) == 1 and observed[0] >= 0
+
+
+async def test_prefix_command_error_drops_timer(env: Env) -> None:
+    ctx = SimpleNamespace(
+        command=SimpleNamespace(qualified_name="sync"),
+        message=SimpleNamespace(id=99),
+    )
+    await env.instr.on_command(ctx)
+    await env.instr.on_command_error(ctx, KeyError("x"))
+    # The timer was dropped, so a later completion records no duration.
+    assert env.names.command_duration_seconds not in env.backend.observations
 
 
 async def test_gateway_and_shard_events(env: Env) -> None:

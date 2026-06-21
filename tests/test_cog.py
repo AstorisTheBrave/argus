@@ -18,6 +18,7 @@ from tests.conftest import FakeBot
 _LISTENER_NAMES = {
     "on_interaction",
     "on_app_command_completion",
+    "on_command",
     "on_command_completion",
     "on_command_error",
     "on_socket_event_type",

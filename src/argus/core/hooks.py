@@ -63,6 +63,7 @@ def register(bot: Any, instrumentation: Instrumentation) -> Registration:
     listeners: list[tuple[str, Any]] = [
         ("on_interaction", instrumentation.on_interaction),
         ("on_app_command_completion", instrumentation.on_app_command_completion),
+        ("on_command", instrumentation.on_command),
         ("on_command_completion", instrumentation.on_command_completion),
         ("on_command_error", instrumentation.on_command_error),
         ("on_socket_event_type", instrumentation.on_socket_event_type),
