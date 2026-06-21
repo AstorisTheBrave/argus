@@ -29,6 +29,20 @@ def test_identity_uses_configured_id(tmp_path: Path) -> None:
     assert FleetClient(cfg).identity == "fixed-id"
 
 
+def test_identity_falls_back_to_cluster_id(tmp_path: Path) -> None:
+    # No fleet_id: the identity is the cluster_id, so it matches the Prometheus
+    # `cluster` label and both sources join the same cluster.
+    cfg = ArgusConfig.resolve(cluster_id="asia-0", fleet_state_dir=str(tmp_path), environ={})
+    assert FleetClient(cfg).identity == "asia-0"
+
+
+def test_fleet_id_beats_cluster_id(tmp_path: Path) -> None:
+    cfg = ArgusConfig.resolve(
+        fleet_id="fixed-id", cluster_id="asia-0", fleet_state_dir=str(tmp_path), environ={}
+    )
+    assert FleetClient(cfg).identity == "fixed-id"
+
+
 def test_identity_persists_uuid(tmp_path: Path) -> None:
     cfg = ArgusConfig.resolve(fleet_state_dir=str(tmp_path), environ={})
     first = FleetClient(cfg).identity

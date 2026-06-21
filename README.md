@@ -8,10 +8,11 @@
 **Operational Prometheus / OpenTelemetry metrics for [discord.py](https://github.com/Rapptz/discord.py) bots, in one line.**
 
 ```python
+import discord
 from discord.ext import commands
 from argus import Argus
 
-bot = commands.AutoShardedBot(command_prefix="!", intents=...)
+bot = commands.AutoShardedBot(command_prefix="!", intents=discord.Intents.default())
 Argus(bot)          # the whole integration
 ```
 

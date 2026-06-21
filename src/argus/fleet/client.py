@@ -60,9 +60,17 @@ class FleetClient:
         self._task: asyncio.Task[None] | None = None
 
     def _resolve_identity(self) -> str:
-        """Use the configured id, else a UUID persisted to the state dir."""
+        """The stable identity: ``fleet_id``, else ``cluster_id``, else a UUID.
+
+        Falling back to ``cluster_id`` means the fleet identity equals the
+        Prometheus ``cluster`` label, so the push and Prometheus sources join the
+        same way without extra configuration. Only when neither is set is a UUID
+        generated and persisted to the state dir.
+        """
         if self._config.fleet_id:
             return self._config.fleet_id
+        if self._config.cluster_id:
+            return self._config.cluster_id
         path = Path(self._config.fleet_state_dir) / _IDENTITY_FILE
         try:
             if path.exists():
