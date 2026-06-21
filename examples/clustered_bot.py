@@ -1,13 +1,20 @@
 """Clustered Argus: one process per shard range, one /metrics per process.
 
-Run several copies, each with a distinct CLUSTER_ID and ARGUS_PORT:
+Two separate rules, often confused:
+- CLUSTER_ID is ALWAYS distinct per process (it is the `cluster` label).
+- The PORT only needs to differ when processes share a host. This example runs
+  both on ONE host, so they use 9191 and 9192. On SEPARATE hosts/containers/pods
+  each has its own IP, so leave them both at the default 9191 (no collision) and
+  Prometheus scrapes host-a:9191, host-b:9191, ...
+
+Co-located example (one host -> distinct ports):
 
     DISCORD_TOKEN=... CLUSTER_ID=0 ARGUS_PORT=9191 SHARD_IDS=0,1 SHARD_COUNT=4 \
         python examples/clustered_bot.py
     DISCORD_TOKEN=... CLUSTER_ID=1 ARGUS_PORT=9192 SHARD_IDS=2,3 SHARD_COUNT=4 \
         python examples/clustered_bot.py
 
-Point prometheus.yml at every port. Each process' gauges carry its distinct
+Point prometheus.yml at every process. Each process' gauges carry its distinct
 `cluster` label, so the dashboards' $cluster variable separates them while
 counter rates aggregate across the fleet at query time.
 """
