@@ -1,0 +1,67 @@
+# An Argus-instrumented discord.py bot on Kubernetes.
+#
+# This deploys YOUR bot image (which has `Argus(bot)` in it); the snippet shows
+# the operational shape Argus expects: the token from a Secret, a memory limit,
+# a /healthz liveness probe, non-root, and a ServiceMonitor-friendly metrics port.
+# A Deployment (not StatefulSet) is fine for a bot: it is stateless and restarts
+# are cheap. Pin a real image and request only the resources you need.
+#
+#   kubectl create secret generic discord-bot --from-literal=token=YOUR_TOKEN
+#   kubectl apply -f bot.yaml
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: discord-bot
+  labels: { app: discord-bot }
+spec:
+  selector: { app: discord-bot }
+  ports:
+    - name: metrics
+      port: 9191
+      targetPort: 9191
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: discord-bot
+spec:
+  replicas: 1 # one Argus per process; scale by sharding (distinct cluster_id), not replicas
+  selector:
+    matchLabels: { app: discord-bot }
+  template:
+    metadata:
+      labels: { app: discord-bot }
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+      containers:
+        - name: bot
+          image: ghcr.io/youruser/yourbot:latest # your bot image with Argus(bot)
+          ports:
+            - { name: metrics, containerPort: 9191 }
+          env:
+            - name: DISCORD_TOKEN
+              valueFrom:
+                secretKeyRef: { name: discord-bot, key: token }
+            - name: ARGUS_HOST
+              value: 0.0.0.0
+            - name: ARGUS_CLUSTER_ID
+              valueFrom:
+                fieldRef: { fieldPath: metadata.name } # stable per-pod cluster label
+            - name: ARGUS_DASHBOARD_AUTH_TOKEN
+              valueFrom:
+                secretKeyRef: { name: discord-bot, key: dashboard-token, optional: true }
+          resources:
+            requests: { memory: 512Mi, cpu: 100m }
+            limits: { memory: 1Gi } # cache leak restarts the pod instead of OOMing the node
+          livenessProbe:
+            httpGet: { path: /healthz, port: 9191 }
+            initialDelaySeconds: 20
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: ["ALL"] }
+# Scrape /metrics with a Prometheus Operator PodMonitor/ServiceMonitor selecting
+# app=discord-bot, port "metrics". The `cluster` label is already on the metrics.

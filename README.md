@@ -189,13 +189,20 @@ Report vulnerabilities privately via [SECURITY.md](SECURITY.md).
 
 ## Examples
 
-Runnable examples in [`examples/`](examples/):
+Runnable examples in [`examples/`](examples/) (see [`examples/README.md`](examples/README.md)
+for the index + a production dos-and-don'ts):
 
 - [`basic_bot.py`](examples/basic_bot.py) — one bot, one line.
+- [`production_bot.py`](examples/production_bot.py) — hardened single bot (intents, secrets, auth, logging).
 - [`clustered_bot.py`](examples/clustered_bot.py) — one process per shard range.
+- [`otlp_bot.py`](examples/otlp_bot.py) — export to an OpenTelemetry collector.
+- [`analytics_bot.py`](examples/analytics_bot.py) — per-guild ClickHouse analytics.
 - [`fleet_member_bot.py`](examples/fleet_member_bot.py) — opting into a fleet.
 - [`config_kwargs.py`](examples/config_kwargs.py) — every option, as kwargs.
-- [`k8s/fleet.yaml`](examples/k8s/fleet.yaml) — the control plane on Kubernetes.
+- [`k8s/`](examples/k8s/) — Kubernetes manifests for a bot and the control plane.
+
+Using a coding agent to get started? Point it at [`llms.txt`](llms.txt) — a
+machine-readable map (including how to clone the wiki for the in-depth guides).
 
 ## Contributing & license
 
