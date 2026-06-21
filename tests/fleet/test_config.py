@@ -86,6 +86,17 @@ def test_clickhouse_dsn_default_and_env() -> None:
     assert cfg.clickhouse_dsn == "http://ch:8123"
 
 
+def test_read_burst_and_audit_defaults_and_env() -> None:
+    cfg = FleetConfig.resolve(environ={})
+    assert cfg.read_burst == 120
+    assert cfg.audit_log is False
+    cfg2 = FleetConfig.resolve(
+        environ={"ARGUS_FLEET_READ_BURST": "5", "ARGUS_FLEET_AUDIT_LOG": "1"}
+    )
+    assert cfg2.read_burst == 5
+    assert cfg2.audit_log is True
+
+
 def test_lease_config_default_and_env() -> None:
     cfg = FleetConfig.resolve(environ={})
     assert cfg.require_lease is False

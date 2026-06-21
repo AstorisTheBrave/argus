@@ -44,6 +44,7 @@ DEFAULT_VIEW_CACHE_MS = 1000
 DEFAULT_MAX_CLUSTERS = 5000
 DEFAULT_REGISTER_BURST = 60
 DEFAULT_HEARTBEAT_BURST = 60
+DEFAULT_READ_BURST = 120
 # Optional: prune clusters down longer than this many days (0 = never, default).
 DEFAULT_RETENTION_DAYS = 0
 
@@ -100,7 +101,9 @@ class FleetConfig:
     max_clusters: int = DEFAULT_MAX_CLUSTERS
     register_burst: int = DEFAULT_REGISTER_BURST
     heartbeat_burst: int = DEFAULT_HEARTBEAT_BURST
+    read_burst: int = DEFAULT_READ_BURST
     retention_days: int = DEFAULT_RETENTION_DAYS
+    audit_log: bool = False
     # Trust X-Forwarded-For (only when behind a known reverse proxy) so rate
     # limits and conflict detection key on the real client IP, not the proxy's.
     trusted_proxy: bool = False
@@ -134,7 +137,9 @@ class FleetConfig:
         max_clusters: int | None = None,
         register_burst: int | None = None,
         heartbeat_burst: int | None = None,
+        read_burst: int | None = None,
         retention_days: int | None = None,
+        audit_log: bool | None = None,
         trusted_proxy: bool | None = None,
         log_format: str | None = None,
         require_lease: bool | None = None,
@@ -198,9 +203,13 @@ class FleetConfig:
             heartbeat_burst=cls._pick_int(
                 heartbeat_burst, env.get("ARGUS_FLEET_HEARTBEAT_BURST"), DEFAULT_HEARTBEAT_BURST
             ),
+            read_burst=cls._pick_int(
+                read_burst, env.get("ARGUS_FLEET_READ_BURST"), DEFAULT_READ_BURST
+            ),
             retention_days=cls._pick_int(
                 retention_days, env.get("ARGUS_FLEET_RETENTION_DAYS"), DEFAULT_RETENTION_DAYS
             ),
+            audit_log=cls._pick_bool(audit_log, env.get("ARGUS_FLEET_AUDIT_LOG"), False),
             trusted_proxy=cls._pick_bool(
                 trusted_proxy, env.get("ARGUS_FLEET_TRUSTED_PROXY"), False
             ),

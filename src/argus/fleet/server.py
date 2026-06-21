@@ -97,6 +97,23 @@ def _token_ok(provided: str | None, accepted: tuple[str, ...]) -> bool:
     return any(hmac.compare_digest(provided, token) for token in accepted)
 
 
+def _make_read_limit_middleware(limiter: KeyedRateLimiter, trusted_proxy: bool) -> Middleware:
+    """Per-IP rate limit on read (GET) requests; health paths are exempt.
+
+    Runs before auth so an unauthenticated flood is capped too. The view cache
+    already bounds compute; this caps raw request volume per client.
+    """
+
+    @web.middleware
+    async def middleware(request: web.Request, handler: _Handler) -> web.StreamResponse:
+        limited = request.method == "GET" and request.path not in _OPEN_PATHS
+        if limited and not limiter.allow(_client_ip(request, trusted_proxy)):
+            raise web.HTTPTooManyRequests(text="read rate exceeded\n")
+        return await handler(request)
+
+    return middleware
+
+
 def _make_fleet_auth_middleware(
     ingest_tokens: tuple[str, ...], viewer_tokens: tuple[str, ...]
 ) -> Middleware:
@@ -220,6 +237,9 @@ def build_fleet_app(
     if config.cors_origins:
         middlewares.append(_make_cors_middleware(config.cors_origins))
     middlewares.append(
+        _make_read_limit_middleware(KeyedRateLimiter(config.read_burst), config.trusted_proxy)
+    )
+    middlewares.append(
         _make_fleet_auth_middleware(
             config.effective_ingest_tokens(), config.effective_viewer_tokens()
         )
@@ -232,6 +252,16 @@ def build_fleet_app(
     heartbeat_limiter = KeyedRateLimiter(config.heartbeat_burst)
     identity_watch = IdentityWatch()
     trends = TrendStore()
+
+    def _audit(event: str, identity: str, request: web.Request, outcome: str) -> None:
+        if config.audit_log:
+            log.info(
+                "audit %s identity=%s remote=%s outcome=%s",
+                event,
+                _clean_for_log(identity),
+                _clean_for_log(_client_ip(request, config.trusted_proxy)),
+                outcome,
+            )
 
     def _note_identity(identity: str, request: web.Request) -> None:
         remote = _client_ip(request, config.trusted_proxy)
@@ -292,6 +322,7 @@ def build_fleet_app(
         if not registry.knows(identity) and registry.count() >= config.max_clusters:
             raise web.HTTPForbidden(text="fleet cluster cap reached\n")
         if not _lease_ok(identity, str(body.get("lease") or "")):
+            _audit("register", identity, request, "denied:lease")
             raise web.HTTPConflict(text="identity is leased to another holder\n")
         _note_identity(identity, request)
         fleet = str(body.get("fleet") or "default")
@@ -303,6 +334,7 @@ def build_fleet_app(
         lease = generate_secret()
         registry.set_lease(identity, hash_secret(lease, config.secret_pepper))
         metrics.registrations.inc()
+        _audit("register", identity, request, "ok")
         return web.json_response({"number": number, "lease": lease})
 
     async def heartbeat(request: web.Request) -> web.StreamResponse:
@@ -313,6 +345,7 @@ def build_fleet_app(
         if not heartbeat_limiter.allow(identity):
             raise web.HTTPTooManyRequests(text="heartbeat rate exceeded\n")
         if not _lease_ok(identity, str(body.get("lease") or "")):
+            _audit("heartbeat", identity, request, "denied:lease")
             raise web.HTTPConflict(text="identity is leased to another holder\n")
         _note_identity(identity, request)
         snapshot = body.get("snapshot")
