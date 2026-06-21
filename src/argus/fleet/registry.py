@@ -58,6 +58,9 @@ class ClusterEntry:
     # Optional reachable "host:port" the member advertises for Prometheus
     # service discovery; empty when the member does not opt in.
     scrape_target: str = ""
+    # HMAC digest of this cluster's lease secret (empty until a lease is issued);
+    # never the secret itself.
+    lease_hash: str = ""
 
 
 class Registry:
@@ -186,6 +189,17 @@ class Registry:
     def knows(self, identity: str) -> bool:
         """True if ``identity`` is already registered (re-register, not new)."""
         return identity in self._entries
+
+    def get(self, identity: str) -> ClusterEntry | None:
+        """The entry for ``identity``, or None if unknown."""
+        return self._entries.get(identity)
+
+    def set_lease(self, identity: str, lease_hash: str) -> None:
+        """Store the HMAC digest of ``identity``'s lease secret."""
+        entry = self._entries.get(identity)
+        if entry is not None:
+            entry.lease_hash = lease_hash
+            self._dirty = True
 
     def count(self) -> int:
         """Number of registered clusters (up and down)."""

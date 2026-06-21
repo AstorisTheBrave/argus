@@ -86,6 +86,17 @@ def test_clickhouse_dsn_default_and_env() -> None:
     assert cfg.clickhouse_dsn == "http://ch:8123"
 
 
+def test_lease_config_default_and_env() -> None:
+    cfg = FleetConfig.resolve(environ={})
+    assert cfg.require_lease is False
+    assert cfg.secret_pepper is None
+    cfg2 = FleetConfig.resolve(
+        environ={"ARGUS_FLEET_REQUIRE_LEASE": "1", "ARGUS_FLEET_SECRET_PEPPER": "pep"}
+    )
+    assert cfg2.require_lease is True
+    assert cfg2.secret_pepper == "pep"
+
+
 def test_abuse_cap_defaults_and_env() -> None:
     cfg = FleetConfig.resolve(environ={})
     assert cfg.max_clusters == 5000
