@@ -26,6 +26,37 @@ tests:
           - labels: 'cluster:discord_app_command_error_ratio:ratio_rate5m{cluster="a"}'
             value: 0.5
 
+  # Multi-window error ratio used by the SLO burn-rate alerts.
+  - interval: 1m
+    input_series:
+      - series: 'discord_app_commands_total{status="error", cluster="a"}'
+        values: "0+1x70"
+      - series: 'discord_app_commands_total{status="success", cluster="a"}'
+        values: "0+1x70"
+    promql_expr_test:
+      - expr: cluster:discord_app_command_error_ratio:ratio_rate1h
+        eval_time: 65m
+        exp_samples:
+          - labels: 'cluster:discord_app_command_error_ratio:ratio_rate1h{cluster="a"}'
+            value: 0.5
+
+  # Fast error-budget burn fires when both the 1h and 5m windows exceed 14.4x
+  # the 1% budget (here the ratio is 1.0, all errors).
+  - interval: 1m
+    input_series:
+      - series: 'discord_app_commands_total{status="error", cluster="a"}'
+        values: "0+1x70"
+    alert_rule_test:
+      - eval_time: 65m
+        alertname: ArgusAppCommandErrorBudgetBurnFast
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              cluster: a
+            exp_annotations:
+              summary: "Cluster a is burning the error budget fast"
+              description: "App command error ratio > 14.4x budget over 1h and 5m; the 99% SLO is at risk within hours."
+
   # Argus self-health subsystem down fires after 5m at 0.
   - interval: 1m
     input_series:

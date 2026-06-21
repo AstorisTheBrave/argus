@@ -35,6 +35,52 @@ groups:
             sum by (cluster, le) (rate(discord_app_command_duration_seconds_bucket[5m]))
           )
 
+      # Multi-window error ratios for the SLO burn-rate alerts below.
+      - record: cluster:discord_app_command_error_ratio:ratio_rate30m
+        expr: |
+          sum by (cluster) (rate(discord_app_commands_total{status="error"}[30m]))
+          /
+          sum by (cluster) (rate(discord_app_commands_total[30m]))
+      - record: cluster:discord_app_command_error_ratio:ratio_rate1h
+        expr: |
+          sum by (cluster) (rate(discord_app_commands_total{status="error"}[1h]))
+          /
+          sum by (cluster) (rate(discord_app_commands_total[1h]))
+      - record: cluster:discord_app_command_error_ratio:ratio_rate6h
+        expr: |
+          sum by (cluster) (rate(discord_app_commands_total{status="error"}[6h]))
+          /
+          sum by (cluster) (rate(discord_app_commands_total[6h]))
+
+  - name: argus.slo
+    # SLO: 99% of application commands succeed (1% error budget). Multi-window,
+    # multi-burn-rate alerts (Google SRE pattern): a fast burn pages, a slow burn
+    # tickets. Thresholds are budget (0.01) x burn factor: 14.4 -> 0.144, 6 -> 0.06.
+    # Tune the SLO target and windows to your bot.
+    rules:
+      - alert: ArgusAppCommandErrorBudgetBurnFast
+        expr: |
+          cluster:discord_app_command_error_ratio:ratio_rate1h > 0.144
+          and
+          cluster:discord_app_command_error_ratio:ratio_rate5m > 0.144
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Cluster {{ $labels.cluster }} is burning the error budget fast"
+          description: "App command error ratio > 14.4x budget over 1h and 5m; the 99% SLO is at risk within hours."
+      - alert: ArgusAppCommandErrorBudgetBurnSlow
+        expr: |
+          cluster:discord_app_command_error_ratio:ratio_rate6h > 0.06
+          and
+          cluster:discord_app_command_error_ratio:ratio_rate30m > 0.06
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Cluster {{ $labels.cluster }} is burning the error budget slowly"
+          description: "App command error ratio > 6x budget over 6h and 30m; investigate before the 99% SLO is breached."
+
   - name: argus.alerts
     rules:
       # Argus itself stopped being scraped: the bot process is gone, the metrics
