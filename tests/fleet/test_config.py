@@ -80,6 +80,12 @@ def test_log_format_default_and_env() -> None:
     assert FleetConfig.resolve(environ={"ARGUS_FLEET_LOG_FORMAT": "json"}).log_format == "json"
 
 
+def test_clickhouse_dsn_default_and_env() -> None:
+    assert FleetConfig.resolve(environ={}).clickhouse_dsn is None
+    cfg = FleetConfig.resolve(environ={"ARGUS_FLEET_CLICKHOUSE_DSN": "http://ch:8123"})
+    assert cfg.clickhouse_dsn == "http://ch:8123"
+
+
 def test_abuse_cap_defaults_and_env() -> None:
     cfg = FleetConfig.resolve(environ={})
     assert cfg.max_clusters == 5000

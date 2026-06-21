@@ -35,6 +35,7 @@ import os
 import signal
 import sys
 from pathlib import Path
+from typing import Any
 
 from argus.exposition.server import start_server
 from argus.fleet import doctor, wizard
@@ -84,6 +85,22 @@ def build_source(config: FleetConfig) -> FleetDataSource:
     return push
 
 
+async def build_analytics(config: FleetConfig) -> tuple[Any, Any]:
+    """Build the analytics query layer + its client when a ClickHouse DSN is set.
+
+    Returns ``(analytics, client)`` so the caller can close the client; both are
+    ``None`` when analytics is not configured.
+    """
+    if not config.clickhouse_dsn:
+        return None, None
+    import clickhouse_connect  # type: ignore[import-not-found]
+
+    from argus.history.query import AnalyticsQuery
+
+    client = await clickhouse_connect.get_async_client(dsn=config.clickhouse_dsn)
+    return AnalyticsQuery(client), client
+
+
 def load_dotenv_if_available(environ: dict[str, str] | None = None) -> bool:
     """Soft-load a .env into the environment when python-dotenv is installed.
 
@@ -112,7 +129,8 @@ async def _serve(config: FleetConfig) -> None:
         config.ttl_factor,
         config.retention_days,
     )
-    app = build_fleet_app(config, registry, build_source(config))
+    analytics, analytics_client = await build_analytics(config)
+    app = build_fleet_app(config, registry, build_source(config), analytics)
     runner = await start_server(app, config.host, config.port)
     # Graceful shutdown: SIGTERM (e.g. `docker stop`) and SIGINT trip the stop
     # event so the app's cleanup runs (final state flush, source close).
@@ -125,6 +143,8 @@ async def _serve(config: FleetConfig) -> None:
         await stop.wait()
     finally:
         await runner.cleanup()
+        if analytics_client is not None:
+            await analytics_client.close()
         lock.release()
 
 

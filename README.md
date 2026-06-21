@@ -159,6 +159,10 @@ ARGUS_FLEET_TOKEN=secret ARGUS_FLEET_GROUP=asia \
     python bot.py
 ```
 
+Point it at the shared ClickHouse (`ARGUS_FLEET_CLICKHOUSE_DSN`) and the same pane
+gains a per-guild **Analytics** view (fleet-wide, or sliced to one bot) — so one
+dashboard covers operational rollups *and* analytics.
+
 **Secure by default:** a non-loopback bind with no token refuses to start; set a
 token (or `ARGUS_FLEET_TOKEN_FILE`). It assigns each process a stable per-region
 number (never reused; a dead cluster keeps its slot, shown **down**), persists

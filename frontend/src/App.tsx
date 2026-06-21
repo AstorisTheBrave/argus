@@ -43,7 +43,13 @@ export function App() {
   // The control plane serves the same bundle with config.fleet set; render the
   // multi-tier fleet view instead of the per-process dashboard.
   if (config?.fleet) {
-    return <FleetApp token={token} version={config.version} />;
+    return (
+      <FleetApp
+        token={token}
+        version={config.version}
+        analyticsEnabled={config.analytics_enabled}
+      />
+    );
   }
 
   const clusterList = latest ? clusters(latest) : [];

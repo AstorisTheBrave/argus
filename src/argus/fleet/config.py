@@ -88,6 +88,9 @@ class FleetConfig:
     state_path: str = DEFAULT_STATE_PATH
     prometheus_url: str | None = None
     namespace: str = DEFAULT_NAMESPACE
+    # Optional: the shared ClickHouse the bots drain per-guild events to, so the
+    # fleet pane can also serve analytics. Gated like the rest of the read API.
+    clickhouse_dsn: str | None = None
     # Hardening (Day-2 slice 1). Secure-by-default: a non-loopback bind with no
     # token refuses to start unless `insecure` is explicitly set.
     insecure: bool = False
@@ -119,6 +122,7 @@ class FleetConfig:
         state_path: str | None = None,
         prometheus_url: str | None = None,
         namespace: str | None = None,
+        clickhouse_dsn: str | None = None,
         insecure: bool | None = None,
         max_body_bytes: int | None = None,
         cors_origins: tuple[str, ...] | None = None,
@@ -168,6 +172,9 @@ class FleetConfig:
                 prometheus_url, env.get("ARGUS_FLEET_PROMETHEUS_URL")
             ),
             namespace=cls._pick_str(namespace, env.get("ARGUS_NAMESPACE"), DEFAULT_NAMESPACE),
+            clickhouse_dsn=cls._pick_optional(
+                clickhouse_dsn, env.get("ARGUS_FLEET_CLICKHOUSE_DSN")
+            ),
             insecure=cls._pick_bool(insecure, env.get("ARGUS_FLEET_INSECURE"), False),
             max_body_bytes=cls._pick_int(
                 max_body_bytes, env.get("ARGUS_FLEET_MAX_BODY_BYTES"), DEFAULT_MAX_BODY_BYTES
