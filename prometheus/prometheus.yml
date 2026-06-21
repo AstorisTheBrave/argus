@@ -18,6 +18,10 @@ global:
   scrape_interval: 15s
   evaluation_interval: 15s
 
+# Recording + alerting rules (recommended starting points; tune to your bot).
+rule_files:
+  - "rules/*.rules.yml"
+
 scrape_configs:
   - job_name: argus
     static_configs:

@@ -1,0 +1,97 @@
+{
+  "uid": "argus-health",
+  "title": "Argus — Health",
+  "tags": ["argus", "discord"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "30s",
+  "time": { "from": "now-6h", "to": "now" },
+  "templating": {
+    "list": [
+      {
+        "name": "cluster",
+        "label": "cluster",
+        "type": "query",
+        "datasource": { "type": "prometheus", "uid": "argus-prometheus" },
+        "query": { "query": "label_values(discord_guilds, cluster)", "refId": "A" },
+        "refresh": 2,
+        "includeAll": true,
+        "multi": true,
+        "allValue": ".*",
+        "current": {}
+      }
+    ]
+  },
+  "panels": [
+    {
+      "type": "stat",
+      "title": "Argus up",
+      "gridPos": { "h": 5, "w": 6, "x": 0, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "argus-prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            { "type": "value", "options": { "0": { "text": "DOWN", "color": "red" }, "1": { "text": "UP", "color": "green" } } }
+          ],
+          "color": { "mode": "thresholds" },
+          "thresholds": { "steps": [ { "color": "red", "value": null }, { "color": "green", "value": 1 } ] }
+        },
+        "overrides": []
+      },
+      "targets": [
+        { "refId": "A", "datasource": { "type": "prometheus", "uid": "argus-prometheus" }, "expr": "min(argus_up)", "legendFormat": "argus_up" }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Subsystem health (argus_subsystem_up)",
+      "gridPos": { "h": 5, "w": 18, "x": 6, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "argus-prometheus" },
+      "fieldConfig": { "defaults": { "min": 0, "max": 1, "custom": { "drawStyle": "line", "fillOpacity": 10, "lineInterpolation": "stepAfter" } }, "overrides": [] },
+      "targets": [
+        { "refId": "A", "datasource": { "type": "prometheus", "uid": "argus-prometheus" }, "expr": "min by (subsystem) (argus_subsystem_up)", "legendFormat": "{{subsystem}}" }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Instrumentation errors (rate)",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 5 },
+      "datasource": { "type": "prometheus", "uid": "argus-prometheus" },
+      "fieldConfig": { "defaults": { "unit": "ops", "custom": { "drawStyle": "line", "fillOpacity": 10 } }, "overrides": [] },
+      "targets": [
+        { "refId": "A", "datasource": { "type": "prometheus", "uid": "argus-prometheus" }, "expr": "sum by (hook) (rate(argus_instrumentation_errors_total{cluster=~\"$cluster\"}[5m]))", "legendFormat": "{{hook}}" }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "History events dropped (rate)",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 5 },
+      "datasource": { "type": "prometheus", "uid": "argus-prometheus" },
+      "fieldConfig": { "defaults": { "unit": "ops", "custom": { "drawStyle": "line", "fillOpacity": 10 } }, "overrides": [] },
+      "targets": [
+        { "refId": "A", "datasource": { "type": "prometheus", "uid": "argus-prometheus" }, "expr": "sum by (cluster) (rate(argus_history_events_dropped_total{cluster=~\"$cluster\"}[5m]))", "legendFormat": "{{cluster}}" }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "App command error ratio",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 13 },
+      "datasource": { "type": "prometheus", "uid": "argus-prometheus" },
+      "fieldConfig": { "defaults": { "unit": "percentunit", "min": 0, "max": 1, "custom": { "drawStyle": "line", "fillOpacity": 10 } }, "overrides": [] },
+      "targets": [
+        { "refId": "A", "datasource": { "type": "prometheus", "uid": "argus-prometheus" }, "expr": "cluster:discord_app_command_error_ratio:ratio_rate5m{cluster=~\"$cluster\"}", "legendFormat": "{{cluster}}" }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "App command latency p95",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 13 },
+      "datasource": { "type": "prometheus", "uid": "argus-prometheus" },
+      "fieldConfig": { "defaults": { "unit": "s", "custom": { "drawStyle": "line", "fillOpacity": 10 } }, "overrides": [] },
+      "targets": [
+        { "refId": "A", "datasource": { "type": "prometheus", "uid": "argus-prometheus" }, "expr": "cluster:discord_app_command_duration_seconds:p95{cluster=~\"$cluster\"}", "legendFormat": "{{cluster}}" }
+      ]
+    }
+  ]
+}

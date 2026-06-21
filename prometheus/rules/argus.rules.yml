@@ -1,0 +1,109 @@
+# Argus recording and alerting rules.
+#
+# Load these by pointing Prometheus at them (see prometheus/prometheus.yml,
+# rule_files). The recording rules pre-compute the ratios the dashboards and
+# alerts reuse; the alerting rules are conservative starting points - tune the
+# thresholds and `for` windows to your bot before relying on them for paging.
+
+groups:
+  - name: argus.recording
+    interval: 30s
+    rules:
+      # Application command error ratio per cluster (0-1). Guarded against the
+      # divide-by-zero that a cluster with no traffic would otherwise produce.
+      - record: cluster:discord_app_command_error_ratio:ratio_rate5m
+        expr: |
+          sum by (cluster) (rate(discord_app_commands_total{status="error"}[5m]))
+          /
+          clamp_min(sum by (cluster) (rate(discord_app_commands_total[5m])), 1)
+
+      # Prefix command error ratio per cluster (0-1).
+      - record: cluster:discord_command_error_ratio:ratio_rate5m
+        expr: |
+          sum by (cluster) (rate(discord_commands_total{status="error"}[5m]))
+          /
+          clamp_min(sum by (cluster) (rate(discord_commands_total[5m])), 1)
+
+      # p95 application command latency per cluster, from the histogram.
+      - record: cluster:discord_app_command_duration_seconds:p95
+        expr: |
+          histogram_quantile(
+            0.95,
+            sum by (cluster, le) (rate(discord_app_command_duration_seconds_bucket[5m]))
+          )
+
+  - name: argus.alerts
+    rules:
+      # Argus itself stopped being scraped: the bot process is gone, the metrics
+      # server never bound, or the network path is broken.
+      - alert: ArgusDown
+        expr: up{job="argus"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Argus target {{ $labels.instance }} is not scrapeable"
+          description: "Prometheus cannot scrape Argus; the bot or its metrics server is down."
+
+      # A configured Argus subsystem is degraded while the bot itself may be fine
+      # (e.g. the metrics server failed to bind, or the fleet client dropped).
+      - alert: ArgusSubsystemDown
+        expr: argus_subsystem_up == 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Argus subsystem {{ $labels.subsystem }} is down"
+          description: "argus_subsystem_up{subsystem=\"{{ $labels.subsystem }}\"} has been 0 for 5m."
+
+      # Instrumentation is fail-open, so a rising error counter is a signal to
+      # investigate (raise the argus logger to DEBUG), not an outage.
+      - alert: ArgusInstrumentationErrors
+        expr: sum by (cluster, hook) (rate(argus_instrumentation_errors_total[5m])) > 0
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Argus instrumentation hook {{ $labels.hook }} is failing"
+          description: "Hook errors are being counted and swallowed; the bot is unaffected but a metric may be missing."
+
+      # The analytical sink is shedding load: events are produced faster than the
+      # backing store accepts them.
+      - alert: ArgusHistoryEventsDropped
+        expr: sum by (cluster) (rate(argus_history_events_dropped_total[5m])) > 0
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Argus is dropping analytical events on cluster {{ $labels.cluster }}"
+          description: "The history sink queue is full; raise max_queue, speed up ClickHouse, or expect gaps in analytics."
+
+      # Fewer shards connected than configured: a gateway connection is down.
+      - alert: DiscordShardsDisconnected
+        expr: discord_shards_connected < discord_shards_configured
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Cluster {{ $labels.cluster }} has disconnected shards"
+          description: "discord_shards_connected < discord_shards_configured for 5m."
+
+      # Sustained high application-command error ratio.
+      - alert: DiscordHighCommandErrorRatio
+        expr: cluster:discord_app_command_error_ratio:ratio_rate5m > 0.1
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Cluster {{ $labels.cluster }} app command error ratio above 10%"
+          description: "More than 10% of application commands have errored for 10m."
+
+      # Discord is rate-limiting the bot.
+      - alert: DiscordRateLimited
+        expr: sum by (cluster) (rate(discord_ratelimits_total[5m])) > 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Cluster {{ $labels.cluster }} is being rate-limited by Discord"
+          description: "Rate-limit warnings on discord.http for 5m; back off or shard further."
