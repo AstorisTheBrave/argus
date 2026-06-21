@@ -33,8 +33,15 @@ A Discord bot is outbound-only, and so are these. Pick one:
   ```bash
   ARGUS_FLEET_URL=http://fleet-host:9190 ARGUS_FLEET_TOKEN=secret python bot.py
   ```
+- **Prometheus Pushgateway** — keep a pure-Prometheus stack without a scrape:
+  ```bash
+  ARGUS_PUSHGATEWAY_URL=http://pushgateway:9091 python bot.py
+  # optional basic auth: ARGUS_PUSHGATEWAY_USERNAME / ARGUS_PUSHGATEWAY_PASSWORD
+  ```
+  Pushes every `ARGUS_PUSHGATEWAY_INTERVAL` seconds (default 15), grouped by
+  `cluster`. `/metrics` is still served; this is purely additive.
 
-Neither needs an exposed port; both work through NAT.
+None of these needs an exposed port; all work through NAT.
 
 ## Scrape — bind the host's allocation
 

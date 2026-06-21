@@ -153,6 +153,28 @@ def test_fleet_scrape_target() -> None:
     assert cfg.fleet_scrape_target == "10.0.0.5:9191"
 
 
+def test_pushgateway_defaults_and_env() -> None:
+    cfg = ArgusConfig.resolve(environ={})
+    assert cfg.pushgateway_url is None
+    assert cfg.pushgateway_job == "argus"
+    assert cfg.pushgateway_interval == 15
+    assert cfg.pushgateway_username is None
+    assert cfg.pushgateway_password is None
+    env = {
+        "ARGUS_PUSHGATEWAY_URL": "http://pg:9091",
+        "ARGUS_PUSHGATEWAY_JOB": "bots",
+        "ARGUS_PUSHGATEWAY_INTERVAL": "30",
+        "ARGUS_PUSHGATEWAY_USERNAME": "u",
+        "ARGUS_PUSHGATEWAY_PASSWORD": "p",
+    }
+    cfg2 = ArgusConfig.resolve(environ=env)
+    assert cfg2.pushgateway_url == "http://pg:9091"
+    assert cfg2.pushgateway_job == "bots"
+    assert cfg2.pushgateway_interval == 30
+    assert cfg2.pushgateway_username == "u"
+    assert cfg2.pushgateway_password == "p"
+
+
 def test_metrics_auth_token_default_and_env() -> None:
     assert ArgusConfig.resolve(environ={}).metrics_auth_token is None
     assert ArgusConfig.resolve(environ={"ARGUS_METRICS_AUTH_TOKEN": "s"}).metrics_auth_token == "s"

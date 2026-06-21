@@ -90,7 +90,13 @@ def test_subsystem_up_reflects_health() -> None:
     bot = FakeBot()
     config = ArgusConfig.resolve(environ={})
     registry = MetricRegistry()
-    health = HealthState(server_up=True, fleet_enabled=True, fleet_up=False)
+    health = HealthState(
+        server_up=True,
+        fleet_enabled=True,
+        fleet_up=False,
+        pushgateway_enabled=True,
+        pushgateway_up=True,
+    )
     define_metrics(registry, bot, config, health=health)
     adapter = PrometheusAdapter()
     registry.attach(adapter)
@@ -98,4 +104,5 @@ def test_subsystem_up_reflects_health() -> None:
     text = generate_latest(adapter.registry).decode()
     assert 'argus_subsystem_up{subsystem="server"} 1.0' in text
     assert 'argus_subsystem_up{subsystem="fleet"} 0.0' in text
+    assert 'argus_subsystem_up{subsystem="pushgateway"} 1.0' in text
     assert 'subsystem="sink"' not in text  # not enabled -> not reported

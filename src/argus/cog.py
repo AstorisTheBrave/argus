@@ -57,6 +57,7 @@ class ArgusCog(commands.Cog):
         self.health = HealthState(
             fleet_enabled=bool(self.config.fleet_url),
             sink_enabled=bool(self.config.enable_per_guild and self.config.clickhouse_dsn),
+            pushgateway_enabled=bool(self.config.pushgateway_url),
         )
         self.registry = MetricRegistry()
         self.names = define_metrics(self.registry, bot, self.config, health=self.health)
@@ -81,6 +82,7 @@ class ArgusCog(commands.Cog):
         self._runner: Any = None
         self._analytics_client: Any = None
         self._fleet_client: Any = None
+        self._pushgateway: Any = None
         # Register listeners synchronously; additive, safe before the bot logs in.
         self._registration: Registration = register(bot, self.instrumentation)
 
@@ -127,6 +129,35 @@ class ArgusCog(commands.Cog):
                 self.config.port,
             )
         await self._start_fleet_client()
+        await self._start_pushgateway()
+
+    async def _start_pushgateway(self) -> None:
+        """Start the opt-in Pushgateway pusher (fail-open; no-op unless configured)."""
+        if not self.config.pushgateway_url:
+            return
+        from argus.exposition.pushgateway import PushgatewayPusher
+
+        try:
+            pusher = PushgatewayPusher(
+                self.adapter.registry,
+                url=self.config.pushgateway_url,
+                job=self.config.pushgateway_job,
+                cluster=self.config.cluster_id or "default",
+                interval=self.config.pushgateway_interval,
+                username=self.config.pushgateway_username,
+                password=self.config.pushgateway_password,
+                on_health=self._set_pushgateway_health,
+            )
+            await pusher.start()
+            self._pushgateway = pusher
+            log.info("argus pushing metrics to pushgateway %s", self.config.pushgateway_url)
+        except Exception:  # never let push wiring break the bot (invariant 5)
+            self.health.pushgateway_up = False
+            log.debug("argus pushgateway failed to start", exc_info=True)
+            self._pushgateway = None
+
+    def _set_pushgateway_health(self, healthy: bool) -> None:
+        self.health.pushgateway_up = healthy
 
     async def _start_exposition(self) -> None:
         from argus import __version__
@@ -213,6 +244,10 @@ class ArgusCog(commands.Cog):
 
     async def cog_unload(self) -> None:
         self._registration.remove()
+        if self._pushgateway is not None:
+            await self._pushgateway.aclose()
+            self._pushgateway = None
+        self.health.pushgateway_up = False
         if self._fleet_client is not None:
             await self._fleet_client.aclose()
             self._fleet_client = None

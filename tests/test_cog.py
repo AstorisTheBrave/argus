@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from pathlib import Path
 from typing import Any
 
@@ -216,6 +217,32 @@ def test_sink_health_hook_updates_subsystem_state() -> None:
     assert cog.health.sink_up is False
     cog._set_sink_health(True)
     assert cog.health.sink_up is True
+
+
+async def test_cog_starts_pushgateway_when_configured(free_port: int, monkeypatch: Any) -> None:
+    pushed: list[str] = []
+    monkeypatch.setattr("prometheus_client.push_to_gateway", lambda url, **_kw: pushed.append(url))
+    cog = ArgusCog(
+        FakeBot(),
+        ArgusConfig.resolve(
+            host="127.0.0.1",
+            port=free_port,
+            dashboard=False,
+            pushgateway_url="http://pg:9091",
+            environ={},
+        ),
+    )
+    assert cog.health.pushgateway_enabled is True
+    await cog.cog_load()
+    try:
+        await asyncio.sleep(0.05)  # the first push fires immediately, before the interval
+        assert cog._pushgateway is not None
+        assert pushed and pushed[0] == "http://pg:9091"
+        assert cog.health.pushgateway_up is True
+    finally:
+        await cog.cog_unload()
+        assert cog._pushgateway is None
+        assert cog.health.pushgateway_up is False
 
 
 async def test_metrics_auth_gates_metrics_even_without_dashboard(free_port: int) -> None:
