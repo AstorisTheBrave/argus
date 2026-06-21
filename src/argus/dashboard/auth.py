@@ -43,6 +43,26 @@ def _extract_token(request: web.Request) -> str | None:
     return request.query.get("token")
 
 
+def make_metrics_auth_middleware(token: str, metrics_path: str) -> Middleware:
+    """Gate only ``metrics_path`` with ``token``; pass everything else through.
+
+    For shared-host public binds where even the scrape endpoint should not be
+    open. The Prometheus scraper supplies ``Authorization: Bearer <token>`` (or
+    ``?token=``). Comparison is constant-time. ``/healthz`` and the dashboard are
+    untouched by this middleware.
+    """
+
+    @web.middleware
+    async def middleware(request: web.Request, handler: Handler) -> web.StreamResponse:
+        if request.path == metrics_path:
+            provided = _extract_token(request)
+            if provided is None or not hmac.compare_digest(provided, token):
+                raise web.HTTPUnauthorized(text="unauthorized\n")
+        return await handler(request)
+
+    return middleware
+
+
 def make_auth_middleware(
     token: str | None, open_paths: frozenset[str] = frozenset({"/healthz"})
 ) -> Middleware:

@@ -115,6 +115,7 @@ Open the dashboard once with the token and it is remembered in the browser:
 |---|---|---|
 | `port` / `ARGUS_PORT` | `9191` | server port (falls back to `SERVER_PORT`/`PORT` injected by Pterodactyl/PebbleHost/Railway) |
 | `dashboard_auth_token` / `ARGUS_DASHBOARD_AUTH_TOKEN` | — | gate the dashboard + APIs |
+| `metrics_auth_token` / `ARGUS_METRICS_AUTH_TOKEN` | — | require a bearer token to scrape `/metrics` (shared-host public binds) |
 | `grafana_url` / `ARGUS_GRAFANA_URL` | — | link/embed your Grafana boards |
 | `cluster_id` / `ARGUS_CLUSTER_ID` | `default` | label for clustered deploys |
 | `enable_per_guild` / `ARGUS_ENABLE_PER_GUILD` | `false` | per-guild analytics path |
