@@ -1,0 +1,78 @@
+# promtool unit tests for argus.rules.yml.
+#
+#   promtool test rules prometheus/rules/argus.rules.test.yml
+#
+# Runs without a live Prometheus (CI does this via the prom/prometheus image).
+# Each test feeds synthetic series and asserts the recorded value or that the
+# alert fires with the expected labels and annotations.
+
+rule_files:
+  - argus.rules.yml
+
+evaluation_interval: 1m
+
+tests:
+  # Recording rule: error ratio is errors / total, undistorted at low rates.
+  - interval: 1m
+    input_series:
+      - series: 'discord_app_commands_total{status="error", cluster="a"}'
+        values: "0+1x12"
+      - series: 'discord_app_commands_total{status="success", cluster="a"}'
+        values: "0+1x12"
+    promql_expr_test:
+      - expr: cluster:discord_app_command_error_ratio:ratio_rate5m
+        eval_time: 10m
+        exp_samples:
+          - labels: 'cluster:discord_app_command_error_ratio:ratio_rate5m{cluster="a"}'
+            value: 0.5
+
+  # Argus self-health subsystem down fires after 5m at 0.
+  - interval: 1m
+    input_series:
+      - series: 'argus_subsystem_up{subsystem="server"}'
+        values: "0 0 0 0 0 0"
+    alert_rule_test:
+      - eval_time: 5m
+        alertname: ArgusSubsystemDown
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              subsystem: server
+            exp_annotations:
+              summary: "Argus subsystem server is down"
+              description: 'argus_subsystem_up{subsystem="server"} has been 0 for 5m.'
+
+  # The whole target being unscrapeable.
+  - interval: 1m
+    input_series:
+      - series: 'up{job="argus", instance="bot:9191"}'
+        values: "0 0 0"
+    alert_rule_test:
+      - eval_time: 2m
+        alertname: ArgusDown
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              job: argus
+              instance: bot:9191
+            exp_annotations:
+              summary: "Argus target bot:9191 is not scrapeable"
+              description: "Prometheus cannot scrape Argus; the bot or its metrics server is down."
+
+  # Fewer shards connected than configured.
+  - interval: 1m
+    input_series:
+      - series: 'discord_shards_connected{cluster="a"}'
+        values: "1 1 1 1 1 1"
+      - series: 'discord_shards_configured{cluster="a"}'
+        values: "2 2 2 2 2 2"
+    alert_rule_test:
+      - eval_time: 5m
+        alertname: DiscordShardsDisconnected
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              cluster: a
+            exp_annotations:
+              summary: "Cluster a has disconnected shards"
+              description: "discord_shards_connected < discord_shards_configured for 5m."

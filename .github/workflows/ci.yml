@@ -44,6 +44,32 @@ jobs:
         with:
           inputs: .
 
+  config:
+    # Verify the shipped operational config the unit tests cannot: the Prometheus
+    # rules (syntax + alert behaviour) and the release SBOM commands.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: promtool check + unit-test the rules
+        run: |
+          img=prom/prometheus:v3.1.0
+          docker run --rm -v "$PWD/prometheus:/p" --entrypoint promtool $img check rules /p/rules/argus.rules.yml
+          docker run --rm -v "$PWD/prometheus:/p" --entrypoint promtool $img test rules /p/rules/argus.rules.test.yml
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Dry-run the release SBOM commands
+        run: |
+          python -m pip install --upgrade build cyclonedx-bom
+          python -m build --wheel
+          python -m venv sbom-venv
+          ./sbom-venv/bin/pip install dist/*.whl
+          cyclonedx-py environment ./sbom-venv -o argus-sbom.cyclonedx.json
+          python -c "import json; d=json.load(open('argus-sbom.cyclonedx.json')); assert d['bomFormat']=='CycloneDX', d"
+
   frontend:
     runs-on: ubuntu-latest
     defaults:

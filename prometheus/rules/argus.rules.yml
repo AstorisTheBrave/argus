@@ -9,20 +9,23 @@ groups:
   - name: argus.recording
     interval: 30s
     rules:
-      # Application command error ratio per cluster (0-1). Guarded against the
-      # divide-by-zero that a cluster with no traffic would otherwise produce.
+      # Application command error ratio per cluster (0-1). No clamp on the
+      # denominator: when a cluster has no traffic the division yields no sample
+      # (Prometheus drops it), which is exactly what we want - no ratio, no alert.
+      # A clamp_min(..., 1) would instead under-report the ratio at any rate below
+      # 1/s, which is almost always.
       - record: cluster:discord_app_command_error_ratio:ratio_rate5m
         expr: |
           sum by (cluster) (rate(discord_app_commands_total{status="error"}[5m]))
           /
-          clamp_min(sum by (cluster) (rate(discord_app_commands_total[5m])), 1)
+          sum by (cluster) (rate(discord_app_commands_total[5m]))
 
       # Prefix command error ratio per cluster (0-1).
       - record: cluster:discord_command_error_ratio:ratio_rate5m
         expr: |
           sum by (cluster) (rate(discord_commands_total{status="error"}[5m]))
           /
-          clamp_min(sum by (cluster) (rate(discord_commands_total[5m])), 1)
+          sum by (cluster) (rate(discord_commands_total[5m]))
 
       # p95 application command latency per cluster, from the histogram.
       - record: cluster:discord_app_command_duration_seconds:p95
