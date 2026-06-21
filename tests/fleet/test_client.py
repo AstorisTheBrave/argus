@@ -3,8 +3,12 @@
 from __future__ import annotations
 
 import asyncio
+import stat
+import sys
 from pathlib import Path
 from typing import Any
+
+import pytest
 
 from argus.config import ArgusConfig
 from argus.fleet.client import FleetClient
@@ -49,6 +53,12 @@ def test_identity_persists_uuid(tmp_path: Path) -> None:
     # A fresh client over the same state dir reuses the persisted identity.
     assert FleetClient(cfg).identity == first
     assert (tmp_path / "argus-fleet-id").read_text(encoding="utf-8").strip() == first
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="POSIX file mode")
+def test_identity_file_is_owner_only(tmp_path: Path) -> None:
+    FleetClient(ArgusConfig.resolve(fleet_state_dir=str(tmp_path), environ={}))
+    assert stat.S_IMODE((tmp_path / "argus-fleet-id").stat().st_mode) == 0o600
 
 
 async def test_register_and_heartbeat_round_trip(aiohttp_server: Any, tmp_path: Path) -> None:

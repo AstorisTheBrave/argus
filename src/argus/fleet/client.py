@@ -80,6 +80,8 @@ class FleetClient:
             identity = uuid.uuid4().hex
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text(identity, encoding="utf-8")
+            with contextlib.suppress(OSError):  # owner-only; do not let perms stop the bot
+                path.chmod(0o600)
             return identity
         except OSError:
             # A read-only or missing state dir must not stop the bot; fall back
