@@ -113,7 +113,7 @@ Open the dashboard once with the token and it is remembered in the browser:
 
 | kwarg / env | default | meaning |
 |---|---|---|
-| `port` / `ARGUS_PORT` | `9191` | server port |
+| `port` / `ARGUS_PORT` | `9191` | server port (falls back to `SERVER_PORT`/`PORT` injected by Pterodactyl/PebbleHost/Railway) |
 | `dashboard_auth_token` / `ARGUS_DASHBOARD_AUTH_TOKEN` | — | gate the dashboard + APIs |
 | `grafana_url` / `ARGUS_GRAFANA_URL` | — | link/embed your Grafana boards |
 | `cluster_id` / `ARGUS_CLUSTER_ID` | `default` | label for clustered deploys |

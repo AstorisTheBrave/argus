@@ -35,7 +35,7 @@ from discord.ext import commands
 
 from argus._logging import configure_library_logging
 from argus.adapters.prometheus import PrometheusAdapter
-from argus.config import ArgusConfig
+from argus.config import ArgusConfig, bootstrap
 from argus.core.collector import MetricRegistry
 from argus.core.health import HealthState
 from argus.core.hooks import Registration, register
@@ -237,7 +237,9 @@ class Argus:
                 "Argus(bot) has already been applied to this bot; remove the duplicate call"
             )
         bot._argus_attached = True
-        self.config = ArgusConfig.resolve(**kwargs)
+        # bootstrap loads .env (if python-dotenv is present) before resolving, so
+        # file-only hosts configure Argus by uploading a .env. Still one funnel.
+        self.config = bootstrap(**kwargs)
         self.cog = ArgusCog(bot, self.config)
 
         original_setup_hook = bot.setup_hook
