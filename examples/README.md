@@ -21,6 +21,7 @@ git clone https://github.com/AstorisTheBrave/argus.wiki.git
 | [`config_kwargs.py`](config_kwargs.py) | Reference: every config option as kwargs. |
 | [`k8s/bot.yaml`](k8s/bot.yaml) | A bot Deployment on Kubernetes. |
 | [`k8s/fleet.yaml`](k8s/fleet.yaml) | The Fleet control plane as a StatefulSet. |
+| [`hosting/`](hosting/) | Running Argus on Docker bot panels (Pterodactyl, PebbleHost, Ori, Railway): egg, start shim, Railway config, and a decision tree. |
 
 Run any Python example with `DISCORD_TOKEN=... python examples/<file>.py`.
 
