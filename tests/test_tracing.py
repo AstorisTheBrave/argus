@@ -150,9 +150,7 @@ async def test_no_tracer_is_a_noop() -> None:
 
 
 async def test_oldest_span_is_evicted_and_ended(monkeypatch: Any) -> None:
-    import argus.core.instrumentation as instr_mod
-
-    monkeypatch.setattr(instr_mod, "_MAX_PENDING", 1)
+    monkeypatch.setattr("argus.core.instrumentation._MAX_PENDING", 1)
     tracer = FakeTracer()
     instr, _ = _instr(tracer)
     await instr.on_interaction(_app_interaction(iid=1))
