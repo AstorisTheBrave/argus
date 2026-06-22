@@ -120,6 +120,7 @@ Open the dashboard once with the token and it is remembered in the browser:
 | `cluster_id` / `ARGUS_CLUSTER_ID` | `default` | label for clustered deploys |
 | `enable_per_guild` / `ARGUS_ENABLE_PER_GUILD` | `false` | per-guild analytics path |
 | `otlp_endpoint` / `ARGUS_OTLP_ENDPOINT` | — | also push metrics via OTLP |
+| `enable_tracing` / `ARGUS_ENABLE_TRACING` | `false` | emit OTLP spans per command/interaction (needs the `otlp` extra) |
 | `log_format` / `ARGUS_LOG_FORMAT` | `text` | set `json` for structured logs on the `argus` logger |
 
 Every option, precedence and parsing rule is in
@@ -166,6 +167,12 @@ per process with a distinct `cluster_id` for clustered bots.
 See the [OTLP tutorial](https://github.com/AstorisTheBrave/argus/wiki/Tutorial-OTLP),
 [Clustering](https://github.com/AstorisTheBrave/argus/wiki/Clustering), and
 [OTLP internals](https://github.com/AstorisTheBrave/argus/wiki/OTLP).
+
+**Tracing (opt-in).** Set `enable_tracing` (the `argus-dpy[otlp]` extra) to emit
+an OpenTelemetry span per command/interaction lifecycle (receipt -> completion,
+with command, outcome, and cluster), exported over OTLP to Jaeger/Tempo/Grafana.
+Spans are batched off the event loop and fail open like every other hook;
+`tracing_endpoint` falls back to `otlp_endpoint`.
 
 **No inbound port? Push instead.** OTLP, a Prometheus **Pushgateway**
 (`pushgateway_url`), and the Fleet client are all outbound-only, so they work

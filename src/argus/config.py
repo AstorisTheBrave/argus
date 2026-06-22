@@ -74,6 +74,10 @@ class ArgusConfig:
     namespace: str = DEFAULT_NAMESPACE
     enable_per_guild: bool = False
     otlp_endpoint: str | None = None
+    # Optional OpenTelemetry tracing: a span per command/interaction lifecycle,
+    # exported over OTLP. tracing_endpoint falls back to otlp_endpoint.
+    enable_tracing: bool = False
+    tracing_endpoint: str | None = None
     # Optional Prometheus Pushgateway push (additive; /metrics still served). For
     # locked hosts that can't be scraped but where you keep a pure-Prometheus
     # stack. url empty -> disabled. Auth is optional HTTP basic.
@@ -115,6 +119,8 @@ class ArgusConfig:
         namespace: str | None = None,
         enable_per_guild: bool | None = None,
         otlp_endpoint: str | None = None,
+        enable_tracing: bool | None = None,
+        tracing_endpoint: str | None = None,
         pushgateway_url: str | None = None,
         pushgateway_job: str | None = None,
         pushgateway_interval: int | None = None,
@@ -164,6 +170,10 @@ class ArgusConfig:
                 enable_per_guild, env.get("ARGUS_ENABLE_PER_GUILD"), False
             ),
             otlp_endpoint=cls._pick_optional(otlp_endpoint, env.get("ARGUS_OTLP_ENDPOINT")),
+            enable_tracing=cls._pick_bool(enable_tracing, env.get("ARGUS_ENABLE_TRACING"), False),
+            tracing_endpoint=cls._pick_optional(
+                tracing_endpoint, env.get("ARGUS_TRACING_ENDPOINT")
+            ),
             pushgateway_url=cls._pick_optional(pushgateway_url, env.get("ARGUS_PUSHGATEWAY_URL")),
             pushgateway_job=cls._pick_str(
                 pushgateway_job, env.get("ARGUS_PUSHGATEWAY_JOB"), DEFAULT_PUSHGATEWAY_JOB

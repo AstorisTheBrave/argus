@@ -60,15 +60,20 @@ class Instrumentation:
         names: MetricNames,
         config: ArgusConfig,
         sink: EventSink | None = None,
+        tracer: Any = None,
     ) -> None:
         self._registry = registry
         self._n = names
         self._config = config
         self._sink = sink
+        self._tracer = tracer
         self._per_guild = config.enable_per_guild
         self._cluster = config.cluster_id or "default"
         self._starts: OrderedDict[int, float] = OrderedDict()
         self._command_starts: OrderedDict[int, float] = OrderedDict()
+        # Open spans keyed by interaction / message id, bounded like the timers.
+        self._spans: OrderedDict[int, Any] = OrderedDict()
+        self._command_spans: OrderedDict[int, Any] = OrderedDict()
 
     def _labels(self, **labels: str) -> dict[str, str]:
         labels["cluster"] = self._cluster
@@ -138,6 +143,39 @@ class Instrumentation:
             seconds = (datetime.now(timezone.utc) - created).total_seconds()
             return seconds if seconds >= 0 else None
         return None
+
+    # --- command-lifecycle spans (bounded, fail-open; invariants 3 and 5) ---
+    def _span_begin(
+        self, store: OrderedDict[int, Any], key: int | None, name: str, attributes: dict[str, str]
+    ) -> None:
+        if self._tracer is None or key is None:
+            return
+        try:
+            span = self._tracer.start(name, attributes)
+        except Exception:  # tracing must never raise into the bot loop
+            return
+        if span is None:
+            return
+        store[key] = span
+        if len(store) > _MAX_PENDING:
+            _, evicted = store.popitem(last=False)  # end the oldest so it cannot leak
+            with contextlib.suppress(Exception):
+                self._tracer.finish(evicted)
+
+    def _span_end(
+        self,
+        store: OrderedDict[int, Any],
+        key: int | None,
+        attributes: dict[str, str] | None = None,
+        error: BaseException | None = None,
+    ) -> None:
+        if self._tracer is None or key is None:
+            return
+        span = store.pop(key, None)
+        if span is None:
+            return
+        with contextlib.suppress(Exception):
+            self._tracer.finish(span, attributes=attributes, error=error)
 
     # --- listener coroutines (what discord.py dispatches to) ---
     async def on_interaction(self, interaction: Any) -> None:
@@ -235,6 +273,15 @@ class Instrumentation:
         self._start_timer(interaction)
         itype = getattr(getattr(interaction, "type", None), "name", _UNKNOWN)
         self._registry.inc(self._n.interactions_total, self._labels(type=itype, status="received"))
+        # Open a span only for application commands (components/modals are noise);
+        # it is closed in completion/error.
+        if itype == "application_command":
+            attrs = {"discord.interaction_type": itype, "cluster": self._cluster}
+            if self._per_guild:
+                attrs["discord.guild_id"] = str(getattr(interaction, "guild_id", "") or "")
+            self._span_begin(
+                self._spans, getattr(interaction, "id", None), "discord.app_command", attrs
+            )
 
     def _app_command_completion(
         self, interaction: Any, command: Any, duration: float | None
@@ -245,6 +292,11 @@ class Instrumentation:
             self._registry.observe(
                 self._n.app_command_duration_seconds, duration, self._labels(command=name)
             )
+        self._span_end(
+            self._spans,
+            getattr(interaction, "id", None),
+            {"discord.command": name, "discord.outcome": "success"},
+        )
 
     def _app_command_error(self, interaction: Any, error: BaseException) -> None:
         name = _qualified_name(getattr(interaction, "command", None))
@@ -254,9 +306,21 @@ class Instrumentation:
             self._n.command_errors_total,
             self._labels(command=name, error_type=type(error).__name__),
         )
+        self._span_end(
+            self._spans,
+            getattr(interaction, "id", None),
+            {"discord.command": name, "discord.outcome": "error"},
+            error=error,
+        )
 
     def _command_start(self, ctx: Any) -> None:
         self._start_command_timer(ctx)
+        self._span_begin(
+            self._command_spans,
+            self._command_message_id(ctx),
+            "discord.command",
+            {"cluster": self._cluster},
+        )
 
     def _command_completion(self, ctx: Any) -> None:
         name = _qualified_name(getattr(ctx, "command", None))
@@ -266,6 +330,11 @@ class Instrumentation:
             self._registry.observe(
                 self._n.command_duration_seconds, duration, self._labels(command=name)
             )
+        self._span_end(
+            self._command_spans,
+            self._command_message_id(ctx),
+            {"discord.command": name, "discord.outcome": "success"},
+        )
 
     def _command_error(self, ctx: Any, error: BaseException) -> None:
         name = _qualified_name(getattr(ctx, "command", None))
@@ -274,6 +343,12 @@ class Instrumentation:
         self._registry.inc(
             self._n.command_errors_total,
             self._labels(command=name, error_type=type(error).__name__),
+        )
+        self._span_end(
+            self._command_spans,
+            self._command_message_id(ctx),
+            {"discord.command": name, "discord.outcome": "error"},
+            error=error,
         )
 
     def _socket_event_type(self, event_type: str) -> None:

@@ -153,6 +153,17 @@ def test_fleet_scrape_target() -> None:
     assert cfg.fleet_scrape_target == "10.0.0.5:9191"
 
 
+def test_tracing_defaults_and_env() -> None:
+    cfg = ArgusConfig.resolve(environ={})
+    assert cfg.enable_tracing is False
+    assert cfg.tracing_endpoint is None
+    cfg2 = ArgusConfig.resolve(
+        environ={"ARGUS_ENABLE_TRACING": "1", "ARGUS_TRACING_ENDPOINT": "http://otel:4317"}
+    )
+    assert cfg2.enable_tracing is True
+    assert cfg2.tracing_endpoint == "http://otel:4317"
+
+
 def test_pushgateway_defaults_and_env() -> None:
     cfg = ArgusConfig.resolve(environ={})
     assert cfg.pushgateway_url is None

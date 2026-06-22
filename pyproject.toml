@@ -30,6 +30,7 @@ classifiers = [
 ]
 
 [project.optional-dependencies]
+# Metrics push and command/interaction tracing over OpenTelemetry.
 otlp = ["opentelemetry-sdk", "opentelemetry-exporter-otlp-proto-grpc"]
 clickhouse = ["clickhouse-connect[async]"]
 # Autoload a .env at Argus(bot) startup. Useful on Docker bot hosts whose panel
