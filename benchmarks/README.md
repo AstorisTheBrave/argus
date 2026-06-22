@@ -5,9 +5,16 @@ discord.py bot. Everything runs in-process against a fake bot, so there is no
 Discord connection and no network: the numbers isolate Argus' own cost.
 
 ```bash
-python -m benchmarks.run             # default iteration counts
+python -m benchmarks.run             # single-call micro-costs
 python -m benchmarks.run -n 100000   # heavier run
+python -m benchmarks.load            # sustained throughput + latency percentiles
+python -m benchmarks.load -n 1000000 # heavier load
 ```
+
+`run.py` measures single-call costs; `load.py` drives a **sustained** event stream
+and reports throughput, mean/p50/p99 latency, and peak allocation - the answer to
+"what does it cost under load?". Both are in-process (no Discord), so they isolate
+Argus' own overhead; pair `load.py` with a real bot for end-to-end numbers.
 
 ## What it measures
 
@@ -37,6 +44,12 @@ machine-dependent; the **ratios and orders of magnitude** are the point.
 | `build_snapshot` (dashboard) | ~1.3 ms per tick |
 | startup | ~1 ms |
 | memory | ~450 KiB |
+
+Sustained load (`benchmarks/load.py`, same machine, 100k events): ~55k events/s
+through `on_socket_event_type`/`on_interaction`, **~17 us overhead per event**
+(p99 well under 100 us), ~3 MiB peak allocation. A bot doing thousands of
+events/sec spends a low single-digit percentage of one core in Argus, and the
+hooks never block.
 
 ## How to read it
 
