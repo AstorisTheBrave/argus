@@ -245,6 +245,24 @@ async def test_cog_starts_pushgateway_when_configured(free_port: int, monkeypatc
         assert cog.health.pushgateway_up is False
 
 
+def test_tracing_build_is_fail_open_without_otel() -> None:
+    # enable_tracing on, but opentelemetry not installed -> degrade, don't crash.
+    cog = ArgusCog(
+        FakeBot(),
+        ArgusConfig.resolve(enable_tracing=True, dashboard=False, environ={}),
+    )
+    assert cog.health.tracing_enabled is True
+    # otel is absent in the test env, so the tracer fails to build and is disabled.
+    assert cog._command_tracer is None
+    assert cog.health.tracing_up is False
+
+
+def test_no_tracer_when_tracing_disabled() -> None:
+    cog = ArgusCog(FakeBot(), ArgusConfig.resolve(dashboard=False, environ={}))
+    assert cog._command_tracer is None
+    assert cog.health.tracing_enabled is False
+
+
 async def test_metrics_auth_gates_metrics_even_without_dashboard(free_port: int) -> None:
     cog = ArgusCog(
         FakeBot(),

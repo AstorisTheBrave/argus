@@ -45,3 +45,5 @@ class HealthState:
     sink_up: bool = True
     pushgateway_enabled: bool = False
     pushgateway_up: bool = False
+    tracing_enabled: bool = False
+    tracing_up: bool = False

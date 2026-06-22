@@ -28,6 +28,8 @@ user writes is ``Argus(bot)``.
 
 from __future__ import annotations
 
+import asyncio
+import contextlib
 import logging
 from typing import Any
 
@@ -58,6 +60,7 @@ class ArgusCog(commands.Cog):
             fleet_enabled=bool(self.config.fleet_url),
             sink_enabled=bool(self.config.enable_per_guild and self.config.clickhouse_dsn),
             pushgateway_enabled=bool(self.config.pushgateway_url),
+            tracing_enabled=bool(self.config.enable_tracing),
         )
         self.registry = MetricRegistry()
         self.names = define_metrics(self.registry, bot, self.config, health=self.health)
@@ -68,8 +71,9 @@ class ArgusCog(commands.Cog):
 
             self.registry.attach(OTLPAdapter(endpoint=self.config.otlp_endpoint))
         self.sink: EventSink = self._build_sink()
+        self._command_tracer = self._build_tracer()
         self.instrumentation = Instrumentation(
-            self.registry, self.names, self.config, sink=self.sink
+            self.registry, self.names, self.config, sink=self.sink, tracer=self._command_tracer
         )
         # Isolate scrape-time gauge failures into the error counter (invariant 5).
         self.adapter.set_scrape_error_hook(self.instrumentation.count_error)
@@ -89,6 +93,22 @@ class ArgusCog(commands.Cog):
     def _set_sink_health(self, healthy: bool) -> None:
         """Reflect the sink circuit breaker in argus_subsystem_up{subsystem=sink}."""
         self.health.sink_up = healthy
+
+    def _build_tracer(self) -> Any:
+        """Build the opt-in command tracer (fail-open; needs the otlp extra)."""
+        if not self.config.enable_tracing:
+            return None
+        try:
+            from argus.tracing import build_command_tracer
+
+            endpoint = self.config.tracing_endpoint or self.config.otlp_endpoint
+            tracer = build_command_tracer(endpoint, self.config.cluster_id or "argus")
+            self.health.tracing_up = True
+            return tracer
+        except Exception:  # never let tracing wiring break the bot (invariant 5)
+            self.health.tracing_up = False
+            log.debug("argus tracing failed to start (install argus-dpy[otlp])", exc_info=True)
+            return None
 
     def _build_sink(self) -> EventSink:
         """Select the analytical sink. NullSink unless per-guild analytics is on."""
@@ -257,6 +277,14 @@ class ArgusCog(commands.Cog):
             self._runner = None
         self.health.server_up = False
         await self.sink.aclose()
+        if self._command_tracer is not None:
+            # shutdown() flushes batched spans and may block; keep it off the loop.
+            with contextlib.suppress(Exception):
+                await asyncio.get_running_loop().run_in_executor(
+                    None, self._command_tracer.shutdown
+                )
+            self._command_tracer = None
+            self.health.tracing_up = False
         if self._analytics_client is not None:
             await self._analytics_client.close()
             self._analytics_client = None
