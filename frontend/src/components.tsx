@@ -72,11 +72,15 @@ export function StatCard({ label, value, unit }: { label: string; value: string;
   );
 }
 
+// A Grafana-style time-series panel: title + live value(s) in the header, a
+// filled-area line chart below with gridlines and a bottom legend.
 export function LineChart(props: {
   title: string;
   data: uPlot.AlignedData;
   series: { label: string; stroke: string }[];
   height?: number;
+  unit?: string;
+  format?: (n: number) => string;
 }) {
   const host = useRef<HTMLDivElement>(null);
   const chart = useRef<uPlot | null>(null);
@@ -85,18 +89,35 @@ export function LineChart(props: {
 
   useEffect(() => {
     if (!host.current) return;
-    const height = props.height ?? 200;
+    const height = props.height ?? 190;
+    const grid = { stroke: "rgba(255,255,255,0.05)", width: 1 };
     const opts: uPlot.Options = {
-      title: props.title,
       width: host.current.clientWidth || 480,
       height,
       legend: { show: true },
+      cursor: { points: { size: 6 } },
       scales: { x: { time: false } },
       axes: [
-        { stroke: "#8a93a6", grid: { stroke: "rgba(255,255,255,0.06)" } },
-        { stroke: "#8a93a6", grid: { stroke: "rgba(255,255,255,0.06)" } },
+        { stroke: "#8a93a6", grid, ticks: { stroke: "rgba(255,255,255,0.05)" } },
+        { stroke: "#8a93a6", grid, ticks: { stroke: "rgba(255,255,255,0.05)" }, size: 52 },
       ],
-      series: [{ label: "t" }, ...props.series.map((s) => ({ label: s.label, stroke: s.stroke, width: 2 }))],
+      series: [
+        { label: "t" },
+        ...props.series.map((s) => ({
+          label: s.label,
+          stroke: s.stroke,
+          width: 2,
+          points: { show: false },
+          // Grafana-like soft area fill under each line.
+          fill: (u: uPlot, seriesIdx: number) => {
+            void seriesIdx;
+            const g = u.ctx.createLinearGradient(0, 0, 0, height);
+            g.addColorStop(0, s.stroke + "44");
+            g.addColorStop(1, s.stroke + "00");
+            return g;
+          },
+        })),
+      ],
     };
     chart.current = new uPlot(opts, dataRef.current, host.current);
     const onResize = () => host.current && chart.current?.setSize({ width: host.current.clientWidth, height });
@@ -114,5 +135,29 @@ export function LineChart(props: {
     chart.current?.setData(props.data);
   }, [props.data]);
 
-  return <div className="nimble-glass--flat chart" ref={host} />;
+  // Latest value per series for the Grafana-style header readout.
+  const fmt = props.format ?? ((n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(2)));
+  const lastValues = props.series.map((s, i) => {
+    const col = props.data[i + 1] as (number | null | undefined)[] | undefined;
+    const v = col && col.length > 0 ? col[col.length - 1] : null;
+    return { label: s.label, stroke: s.stroke, value: v == null ? "-" : fmt(v) };
+  });
+
+  return (
+    <div className="nimble-glass--flat panel">
+      <div className="panel-head">
+        <span className="panel-title">{props.title}</span>
+        <span className="panel-readout">
+          {lastValues.map((lv) => (
+            <span key={lv.label} className="panel-value nimble-mono">
+              <span className="panel-swatch" style={{ background: lv.stroke }} />
+              {lv.value}
+              {props.unit ? <span className="unit"> {props.unit}</span> : null}
+            </span>
+          ))}
+        </span>
+      </div>
+      <div className="panel-body" ref={host} />
+    </div>
+  );
 }
