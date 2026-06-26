@@ -13,7 +13,10 @@ keywords = ["discord", "discord.py", "prometheus", "metrics", "observability", "
 dependencies = [
     "discord.py>=2.4,<3",
     "prometheus-client>=0.20",
-    "aiohttp>=3.11,<4",
+    # >=3.14.1 escapes the Jan 2026 CVE-2025-69223..69229 batch (zip-bomb /
+    # body-DoS / smuggling), fixed in 3.13.3, and gets 3.14.0's 32 MiB
+    # decompress cap. CI's pip-audit guards against future advisories.
+    "aiohttp>=3.14.1,<4",
 ]
 classifiers = [
     "Development Status :: 3 - Alpha",
