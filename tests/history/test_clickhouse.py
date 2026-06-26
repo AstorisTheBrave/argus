@@ -97,3 +97,18 @@ async def test_avg_duration_query() -> None:
     sql, _ = fake.queries[0]
     assert "avg(duration_ms)" in sql
     assert avg == 42.0
+
+
+async def test_malicious_guild_id_is_inert_parameter_not_sql() -> None:
+    # Regression guard against SQL injection (audit Finding 3): a hostile value
+    # must travel as a bound parameter, never be interpolated into the SQL text.
+    evil = "1'; DROP TABLE argus_events; --"
+    fake = FakeClient()
+    await AnalyticsQuery(fake).interaction_volume(evil, cluster_id=evil)
+    sql, params = fake.queries[0]
+    assert evil not in sql  # not concatenated into the query
+    assert "DROP TABLE" not in sql.upper().replace("ARGUS_EVENTS", "")
+    assert params["guild_id"] == evil  # passed as a parameter instead
+    assert params["cluster_id"] == evil
+    # SQL only contains placeholders, never the raw value.
+    assert "%(guild_id)s" in sql and "%(cluster_id)s" in sql
