@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 AstorisTheBrave
 
-import { Activity, BarChart3, Database, Radio, Zap, type LucideIcon } from "lucide-react";
+import { Activity, BarChart3, Database, Radio, Rocket, Zap, type LucideIcon } from "lucide-react";
 import { useEffect, useRef } from "react";
 import uPlot from "uplot";
 import "uplot/dist/uPlot.min.css";
 
-export type SectionId = "overview" | "interactions" | "gateway" | "grafana" | "analytics";
+export type SectionId = "overview" | "interactions" | "gateway" | "grafana" | "analytics" | "setup";
 
 export const SECTIONS: { id: SectionId; label: string; icon: LucideIcon }[] = [
   { id: "overview", label: "Overview", icon: Activity },
@@ -14,6 +14,7 @@ export const SECTIONS: { id: SectionId; label: string; icon: LucideIcon }[] = [
   { id: "gateway", label: "Gateway", icon: Radio },
   { id: "grafana", label: "Grafana", icon: BarChart3 },
   { id: "analytics", label: "Analytics", icon: Database },
+  { id: "setup", label: "Setup", icon: Rocket },
 ];
 
 export function Sidebar(props: {
