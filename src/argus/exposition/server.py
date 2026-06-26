@@ -60,6 +60,7 @@ def build_app(
     dashboard: DashboardRegistrar | None = None,
     middlewares: Sequence[Middleware] = (),
     max_body_bytes: int = DEFAULT_MAX_BODY_BYTES,
+    csp_frame_src: str | None = None,
 ) -> web.Application:
     """Pure factory: build the aiohttp app.
 
@@ -67,10 +68,12 @@ def build_app(
     is called with the app to register the dashboard routes. ``middlewares`` are
     applied to the whole app (used for optional dashboard auth). Every response is
     hardened (security headers + version-banner strip) and the request body is
-    capped, matching the fleet control plane.
+    capped, matching the fleet control plane. ``csp_frame_src`` adds one trusted
+    origin to the CSP ``frame-src`` so the dashboard can embed it (the Grafana
+    tab).
     """
     app = web.Application(middlewares=list(middlewares), client_max_size=max_body_bytes)
-    app.on_response_prepare.append(make_harden_response(_SERVER_BANNER))
+    app.on_response_prepare.append(make_harden_response(_SERVER_BANNER, frame_src=csp_frame_src))
     app.router.add_get(metrics_path, make_metrics_handler(registry))
     app.router.add_get("/healthz", health)
     if dashboard is not None:

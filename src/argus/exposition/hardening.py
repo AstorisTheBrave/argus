@@ -36,17 +36,18 @@ from aiohttp import web
 # hygiene against a hostile client.
 DEFAULT_MAX_BODY_BYTES = 256 * 1024
 
-_SECURITY_HEADERS = {
-    "X-Content-Type-Options": "nosniff",
-    "X-Frame-Options": "DENY",
-    "Referrer-Policy": "no-referrer",
+
+def _content_security_policy(frame_src: str | None) -> str:
     # Permissive enough for the bundled SPA (charts set inline styles) while
-    # blocking framing and foreign script/object sources.
-    "Content-Security-Policy": (
+    # blocking foreign script/object sources and refusing to be framed itself
+    # (frame-ancestors 'none'). frame-src is 'self' by default; an explicit
+    # origin (the configured Grafana) is added so the dashboard can embed it.
+    frame = f"frame-src 'self' {frame_src}" if frame_src else "frame-src 'self'"
+    return (
         "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; "
-        "object-src 'none'; frame-ancestors 'none'"
-    ),
-}
+        f"{frame}; object-src 'none'; frame-ancestors 'none'"
+    )
+
 
 _ResponsePrepare = Callable[[web.Request, web.StreamResponse], Awaitable[None]]
 
@@ -84,12 +85,23 @@ def make_asset_handler(
     return handler
 
 
-def make_harden_response(banner: str) -> _ResponsePrepare:
-    """Build an ``on_response_prepare`` hook: strip the banner, add the headers."""
+def make_harden_response(banner: str, *, frame_src: str | None = None) -> _ResponsePrepare:
+    """Build an ``on_response_prepare`` hook: strip the banner, add the headers.
+
+    ``frame_src`` adds one trusted origin to the CSP ``frame-src`` (the dashboard
+    uses it to embed the configured Grafana); ``None`` keeps the default of
+    ``'self'`` only.
+    """
+    headers = {
+        "X-Content-Type-Options": "nosniff",
+        "X-Frame-Options": "DENY",
+        "Referrer-Policy": "no-referrer",
+        "Content-Security-Policy": _content_security_policy(frame_src),
+    }
 
     async def harden(_request: web.Request, response: web.StreamResponse) -> None:
         response.headers["Server"] = banner
-        for name, value in _SECURITY_HEADERS.items():
+        for name, value in headers.items():
             response.headers[name] = value
 
     return harden
