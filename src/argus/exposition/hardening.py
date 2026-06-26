@@ -51,26 +51,6 @@ _SECURITY_HEADERS = {
 _ResponsePrepare = Callable[[web.Request, web.StreamResponse], Awaitable[None]]
 
 
-def _resolve_within(root: str, requested: str) -> str | None:
-    """Resolve ``requested`` under ``root``; return the path or None if it escapes.
-
-    Deliberately uses ``os.path`` rather than pathlib: ``commonpath`` against the
-    realpath'd target is the containment barrier recognised as the remediation
-    for the path-traversal CVEs ``web.static`` carried (CVE-2024-23334,
-    CVE-2025-69226). Symlinks and ``..`` are collapsed first, then anything that
-    climbs out of the root shares a shorter common prefix and is rejected.
-    """
-    target = os.path.realpath(os.path.join(root, requested))  # noqa: PTH118
-    try:
-        if os.path.commonpath((root, target)) != root:
-            return None
-    except ValueError:
-        return None  # different drive on Windows -> outside root
-    if not os.path.isfile(target):  # noqa: PTH113
-        return None
-    return target
-
-
 def make_asset_handler(
     assets_dir: Path,
 ) -> Callable[[web.Request], Awaitable[web.StreamResponse]]:
@@ -80,12 +60,22 @@ def make_asset_handler(
     has carried path-disclosure / traversal CVEs (CVE-2024-23334, CVE-2025-69226),
     so we resolve the request against the assets root and 404 anything that
     escapes it.
+
+    The containment check uses ``os.path`` deliberately: realpath (to collapse
+    symlinks and ``..``) plus a ``commonpath`` guard, co-located with the sink, is
+    the path-traversal remediation static analysers recognise. The path ops are
+    bounded string/stat work, no different from what ``FileResponse`` itself does.
     """
     root = os.path.realpath(assets_dir)
 
     async def handler(request: web.Request) -> web.StreamResponse:
-        target = _resolve_within(root, request.match_info.get("path", ""))
-        if target is None:
+        requested = request.match_info.get("path", "")
+        target = os.path.realpath(os.path.join(root, requested))  # noqa: ASYNC240, PTH118
+        try:
+            within = os.path.commonpath((root, target)) == root
+        except ValueError:
+            within = False  # different drive on Windows -> outside root
+        if not within or not os.path.isfile(target):  # noqa: ASYNC240, PTH113
             raise web.HTTPNotFound(text="not found\n")
         return web.FileResponse(Path(target))
 
