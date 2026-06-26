@@ -72,7 +72,9 @@ export function App() {
         version={config?.version ?? ""}
       />
       <main className="main">
-        {!latest ? (
+        {active === "setup" ? (
+          <SetupWizard />
+        ) : !latest ? (
           <div className="section">
             <div className="nimble-glass--flat empty">
               <h3>Waiting for the first sample</h3>

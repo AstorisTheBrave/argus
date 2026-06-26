@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 AstorisTheBrave
 
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 function EmptyState({ title, hint }: { title: string; hint: string }) {
   return (
@@ -57,22 +57,13 @@ interface AnalyticsRow {
 }
 
 export function Analytics({ enabled, token }: { enabled: boolean; token: string | null }) {
-  const [guildId, setGuildId] = useState("");
+  const [guildId, setGuildId] = useState("demo-guild-1");
   const [volume, setVolume] = useState<(string | number)[][]>([]);
   const [commands, setCommands] = useState<(string | number)[][]>([]);
   const [avgMs, setAvgMs] = useState<number | null>(null);
   const [error, setError] = useState("");
 
-  if (!enabled) {
-    return (
-      <EmptyState
-        title="Analytics off"
-        hint="Set enable_per_guild and clickhouse_dsn (with a dashboard_auth_token) to enable per-guild analytics."
-      />
-    );
-  }
-
-  const load = async () => {
+  const load = useCallback(async () => {
     setError("");
     const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
     const get = async (path: string) => {
@@ -94,7 +85,23 @@ export function Analytics({ enabled, token }: { enabled: boolean; token: string 
     } catch (e) {
       setError(`request failed (${e instanceof Error ? e.message : "error"})`);
     }
-  };
+  }, [guildId, token]);
+
+  // Load once on mount so the tab shows data immediately when analytics is on.
+  useEffect(() => {
+    if (enabled && guildId) void load();
+    // Only auto-load on first render; further loads are user-driven.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [enabled]);
+
+  if (!enabled) {
+    return (
+      <EmptyState
+        title="Analytics off"
+        hint="Set enable_per_guild and clickhouse_dsn (with a dashboard_auth_token) to enable per-guild analytics."
+      />
+    );
+  }
 
   return (
     <div className="section">
