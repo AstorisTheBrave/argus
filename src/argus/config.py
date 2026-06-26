@@ -73,6 +73,9 @@ class ArgusConfig:
     cluster_id: str | None = None
     namespace: str = DEFAULT_NAMESPACE
     enable_per_guild: bool = False
+    # Register the standard process/runtime collectors (CPU, RSS, FDs, GC). On by
+    # default; disable on multiprocess deployments where they cannot work.
+    process_metrics: bool = True
     otlp_endpoint: str | None = None
     # Optional OpenTelemetry tracing: a span per command/interaction lifecycle,
     # exported over OTLP. tracing_endpoint falls back to otlp_endpoint.
@@ -118,6 +121,7 @@ class ArgusConfig:
         cluster_id: str | None = None,
         namespace: str | None = None,
         enable_per_guild: bool | None = None,
+        process_metrics: bool | None = None,
         otlp_endpoint: str | None = None,
         enable_tracing: bool | None = None,
         tracing_endpoint: str | None = None,
@@ -169,6 +173,7 @@ class ArgusConfig:
             enable_per_guild=cls._pick_bool(
                 enable_per_guild, env.get("ARGUS_ENABLE_PER_GUILD"), False
             ),
+            process_metrics=cls._pick_bool(process_metrics, env.get("ARGUS_PROCESS_METRICS"), True),
             otlp_endpoint=cls._pick_optional(otlp_endpoint, env.get("ARGUS_OTLP_ENDPOINT")),
             enable_tracing=cls._pick_bool(enable_tracing, env.get("ARGUS_ENABLE_TRACING"), False),
             tracing_endpoint=cls._pick_optional(

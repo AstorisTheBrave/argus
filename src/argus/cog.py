@@ -42,6 +42,7 @@ from argus.core.collector import MetricRegistry
 from argus.core.health import HealthState
 from argus.core.hooks import Registration, register
 from argus.core.instrumentation import Instrumentation
+from argus.core.loop_monitor import LoopMonitor
 from argus.core.metrics import bot_info_values, define_metrics
 from argus.history.sink import BatchingSink, EventSink, NullSink
 
@@ -63,8 +64,11 @@ class ArgusCog(commands.Cog):
             tracing_enabled=bool(self.config.enable_tracing),
         )
         self.registry = MetricRegistry()
-        self.names = define_metrics(self.registry, bot, self.config, health=self.health)
-        self.adapter = PrometheusAdapter()
+        self._loop_monitor = LoopMonitor()
+        self.names = define_metrics(
+            self.registry, bot, self.config, health=self.health, loop_monitor=self._loop_monitor
+        )
+        self.adapter = PrometheusAdapter(process_metrics=self.config.process_metrics)
         self.registry.attach(self.adapter)
         if self.config.otlp_endpoint:
             from argus.adapters.otlp import OTLPAdapter
@@ -150,6 +154,9 @@ class ArgusCog(commands.Cog):
             )
         await self._start_fleet_client()
         await self._start_pushgateway()
+        # Cheap background sampler feeding the event-loop-lag gauge (fail-open).
+        with contextlib.suppress(Exception):
+            await self._loop_monitor.start()
 
     async def _start_pushgateway(self) -> None:
         """Start the opt-in Pushgateway pusher (fail-open; no-op unless configured)."""
@@ -264,6 +271,7 @@ class ArgusCog(commands.Cog):
 
     async def cog_unload(self) -> None:
         self._registration.remove()
+        await self._loop_monitor.aclose()
         if self._pushgateway is not None:
             await self._pushgateway.aclose()
             self._pushgateway = None
