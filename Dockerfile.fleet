@@ -13,7 +13,17 @@
 FROM node:24-slim AS web
 WORKDIR /web
 COPY frontend/package.json frontend/package-lock.json ./
-RUN npm ci
+# npm intermittently omits a platform-specific optional native binding even when
+# the lockfile records it (npm/cli#4828); rolldown then aborts the build with
+# "Cannot find native binding". The lockfile pins it as a direct optional dep,
+# and this backstop repairs a swallowed install: if the linux-x64 binding is
+# missing after npm ci, fetch the exact version rolldown expects (fatal if the
+# registry is truly unavailable, rather than silently producing a broken bundle).
+RUN npm ci \
+    && if ! node -e "require('@rolldown/binding-linux-x64-gnu')" 2>/dev/null; then \
+         npm install --no-save --include=optional \
+           "@rolldown/binding-linux-x64-gnu@$(node -p "require('rolldown/package.json').version")"; \
+       fi
 COPY frontend/ ./
 RUN npm run build
 
