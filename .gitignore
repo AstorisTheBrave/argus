@@ -58,3 +58,8 @@ Thumbs.db
 .env
 .env.*
 !.env.example
+
+# --- Local demo / preview harness (not part of the package) ---
+examples/mock_dashboard.py
+Dockerfile.demo
+docker-compose.override.yml
