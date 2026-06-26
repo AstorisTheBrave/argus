@@ -25,7 +25,9 @@ and sending the headers here removes the easy fingerprint either way.
 
 from __future__ import annotations
 
+import os
 from collections.abc import Awaitable, Callable
+from pathlib import Path
 
 from aiohttp import web
 
@@ -47,6 +49,39 @@ _SECURITY_HEADERS = {
 }
 
 _ResponsePrepare = Callable[[web.Request, web.StreamResponse], Awaitable[None]]
+
+
+def make_asset_handler(
+    assets_dir: Path,
+) -> Callable[[web.Request], Awaitable[web.StreamResponse]]:
+    """Serve a file from ``assets_dir`` by path, refusing traversal outside it.
+
+    Used instead of ``web.static()`` for the bundled SPA: aiohttp's static helper
+    has carried path-disclosure / traversal CVEs (CVE-2024-23334, CVE-2025-69226),
+    so we resolve the request against the assets root and 404 anything that
+    escapes it.
+
+    The containment check uses ``os.path`` deliberately: realpath (to collapse
+    symlinks and ``..``) followed by a ``startswith`` guard against the root plus a
+    separator, co-located with the sink, is the canonical path-traversal
+    remediation static analysers recognise. The trailing separator defeats the
+    sibling-prefix bug (``/assetsX`` must not pass for root ``/assets``). The path
+    ops are bounded string/stat work, no different from what ``FileResponse``
+    itself does.
+    """
+    root = os.path.realpath(assets_dir)
+    root_prefix = root + os.sep
+
+    async def handler(request: web.Request) -> web.StreamResponse:
+        requested = request.match_info.get("path", "")
+        target = os.path.realpath(os.path.join(root, requested))  # noqa: ASYNC240, PTH118
+        if not target.startswith(root_prefix):
+            raise web.HTTPNotFound(text="not found\n")
+        if not os.path.isfile(target):  # noqa: ASYNC240, PTH113
+            raise web.HTTPNotFound(text="not found\n")
+        return web.FileResponse(Path(target))
+
+    return handler
 
 
 def make_harden_response(banner: str) -> _ResponsePrepare:

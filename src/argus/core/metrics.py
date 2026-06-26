@@ -82,6 +82,7 @@ class MetricNames:
     ratelimits_total: str
     instrumentation_errors_total: str
     history_events_dropped_total: str
+    timers_evicted_total: str
     # histograms
     app_command_duration_seconds: str
     command_duration_seconds: str
@@ -119,6 +120,7 @@ def build_names(namespace: str) -> MetricNames:
         ratelimits_total=f"{ns}_ratelimits_total",
         instrumentation_errors_total="argus_instrumentation_errors_total",
         history_events_dropped_total="argus_history_events_dropped_total",
+        timers_evicted_total="argus_timers_evicted_total",
         app_command_duration_seconds=f"{ns}_app_command_duration_seconds",
         command_duration_seconds=f"{ns}_command_duration_seconds",
     )
@@ -450,6 +452,14 @@ def define_metrics(
         MetricDef(
             names.history_events_dropped_total,
             "Total per-guild analytical events dropped because the sink queue was full.",
+            MetricKind.COUNTER,
+            labelnames=("cluster",),
+        )
+    )
+    registry.define(
+        MetricDef(
+            names.timers_evicted_total,
+            "Total in-flight timers evicted at the cap (latency under-counted past timer_cap).",
             MetricKind.COUNTER,
             labelnames=("cluster",),
         )

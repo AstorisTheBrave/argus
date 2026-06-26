@@ -116,3 +116,20 @@ async def test_prometheus_source_aclose_closes_client(tmp_path: Path) -> None:
     source = PrometheusSource("http://prom", "discord", client=client)
     await source.aclose()
     assert client.closed is True
+
+
+@pytest.mark.parametrize(
+    "url",
+    ["file:///etc/passwd", "gopher://prom", "ftp://prom/data", "prom:9090", "", "/relative"],
+)
+def test_http_query_client_rejects_non_http_url(url: str) -> None:
+    # SSRF-flavoured / malformed schemes are refused at construction, before any
+    # request is built.
+    with pytest.raises(ValueError, match="http"):
+        HTTPQueryClient(url)
+
+
+@pytest.mark.parametrize("url", ["http://prom:9090", "https://prom.example/path"])
+def test_http_query_client_accepts_http_urls(url: str) -> None:
+    client = HTTPQueryClient(url)
+    assert client._url == url.rstrip("/")

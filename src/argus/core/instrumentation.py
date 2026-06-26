@@ -44,7 +44,6 @@ if TYPE_CHECKING:
 log = logging.getLogger("argus")
 
 _UNKNOWN = "unknown"
-_MAX_PENDING = 10_000  # cap on in-flight interaction timers (bounded memory)
 
 
 def _qualified_name(obj: Any) -> str:
@@ -69,6 +68,7 @@ class Instrumentation:
         self._tracer = tracer
         self._per_guild = config.enable_per_guild
         self._cluster = config.cluster_id or "default"
+        self._max_pending = config.timer_cap
         self._starts: OrderedDict[int, float] = OrderedDict()
         self._command_starts: OrderedDict[int, float] = OrderedDict()
         # Open spans keyed by interaction / message id, bounded like the timers.
@@ -93,6 +93,10 @@ class Instrumentation:
         with contextlib.suppress(Exception):  # pragma: no cover - the counter itself failed
             self._registry.inc(self._n.history_events_dropped_total, self._labels())
 
+    def _count_eviction(self) -> None:
+        with contextlib.suppress(Exception):  # pragma: no cover - the counter itself failed
+            self._registry.inc(self._n.timers_evicted_total, self._labels())
+
     def _safe(self, hook: str, fn: Callable[..., None], *args: Any) -> None:
         try:
             fn(*args)
@@ -106,8 +110,9 @@ class Instrumentation:
         if iid is None:
             return
         self._starts[iid] = time.monotonic()
-        if len(self._starts) > _MAX_PENDING:
+        if len(self._starts) > self._max_pending:
             self._starts.popitem(last=False)  # evict the oldest in-flight timer
+            self._count_eviction()
 
     def _take_duration(self, interaction: Any) -> float | None:
         iid = getattr(interaction, "id", None)
@@ -130,8 +135,9 @@ class Instrumentation:
         if mid is None:
             return
         self._command_starts[mid] = time.monotonic()
-        if len(self._command_starts) > _MAX_PENDING:
+        if len(self._command_starts) > self._max_pending:
             self._command_starts.popitem(last=False)
+            self._count_eviction()
 
     def _take_command_duration(self, ctx: Any) -> float | None:
         mid = self._command_message_id(ctx)
@@ -157,7 +163,7 @@ class Instrumentation:
         if span is None:
             return
         store[key] = span
-        if len(store) > _MAX_PENDING:
+        if len(store) > self._max_pending:
             _, evicted = store.popitem(last=False)  # end the oldest so it cannot leak
             with contextlib.suppress(Exception):
                 self._tracer.finish(evicted)

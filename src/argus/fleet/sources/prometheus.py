@@ -28,6 +28,7 @@ from __future__ import annotations
 
 import asyncio
 from typing import Protocol
+from urllib.parse import urlparse
 
 import aiohttp
 
@@ -60,6 +61,12 @@ class HTTPQueryClient:
     __slots__ = ("_session", "_timeout", "_url")
 
     def __init__(self, url: str, timeout: float = DEFAULT_QUERY_TIMEOUT) -> None:
+        # Validate the operator-supplied Prometheus URL: only http(s), and a host
+        # must be present. Rejects file://, gopher://, and other SSRF-flavoured
+        # schemes outright (defence in depth even though this is operator config).
+        parsed = urlparse(url)
+        if parsed.scheme not in ("http", "https") or not parsed.netloc:
+            raise ValueError(f"prometheus_url must be an http(s) URL, got {url!r}")
         self._url = url.rstrip("/")
         self._timeout = aiohttp.ClientTimeout(total=timeout)
         self._session: aiohttp.ClientSession | None = None

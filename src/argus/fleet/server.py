@@ -40,7 +40,7 @@ from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 
 from argus import __version__
 from argus.dashboard.server import STATIC_DIR
-from argus.exposition.hardening import make_harden_response
+from argus.exposition.hardening import make_asset_handler, make_harden_response
 from argus.fleet.crypto import generate_secret, hash_secret, verify_secret
 from argus.fleet.metrics import FleetMetrics
 from argus.fleet.ratelimit import KeyedRateLimiter
@@ -135,6 +135,11 @@ def _make_fleet_auth_middleware(
             return await handler(request)
         if _token_ok(_extract_token(request), accepted):
             return await handler(request)
+        log.warning(
+            "argus fleet auth failure for %s from %s",
+            _clean_for_log(path),
+            _clean_for_log(request.remote),
+        )
         raise web.HTTPUnauthorized(text="unauthorized\n")
 
     return middleware
@@ -483,7 +488,7 @@ def build_fleet_app(
         app.router.add_get("/api/fleet/analytics/avg-duration", analytics_avg_duration)
     assets_dir = STATIC_DIR / "assets"
     if assets_dir.is_dir():
-        app.router.add_static("/assets/", assets_dir)
+        app.router.add_get("/assets/{path:.*}", make_asset_handler(assets_dir))
     app.router.add_get("/", index)
     app.on_startup.append(_on_startup)
     app.on_cleanup.append(_on_cleanup)
