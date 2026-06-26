@@ -25,6 +25,7 @@ and sending the headers here removes the easy fingerprint either way.
 
 from __future__ import annotations
 
+import os
 from collections.abc import Awaitable, Callable
 from pathlib import Path
 
@@ -50,6 +51,26 @@ _SECURITY_HEADERS = {
 _ResponsePrepare = Callable[[web.Request, web.StreamResponse], Awaitable[None]]
 
 
+def _resolve_within(root: str, requested: str) -> str | None:
+    """Resolve ``requested`` under ``root``; return the path or None if it escapes.
+
+    Deliberately uses ``os.path`` rather than pathlib: ``commonpath`` against the
+    realpath'd target is the containment barrier recognised as the remediation
+    for the path-traversal CVEs ``web.static`` carried (CVE-2024-23334,
+    CVE-2025-69226). Symlinks and ``..`` are collapsed first, then anything that
+    climbs out of the root shares a shorter common prefix and is rejected.
+    """
+    target = os.path.realpath(os.path.join(root, requested))  # noqa: PTH118
+    try:
+        if os.path.commonpath((root, target)) != root:
+            return None
+    except ValueError:
+        return None  # different drive on Windows -> outside root
+    if not os.path.isfile(target):  # noqa: PTH113
+        return None
+    return target
+
+
 def make_asset_handler(
     assets_dir: Path,
 ) -> Callable[[web.Request], Awaitable[web.StreamResponse]]:
@@ -60,13 +81,13 @@ def make_asset_handler(
     so we resolve the request against the assets root and 404 anything that
     escapes it.
     """
-    root = assets_dir.resolve()
+    root = os.path.realpath(assets_dir)
 
     async def handler(request: web.Request) -> web.StreamResponse:
-        target = (root / request.match_info.get("path", "")).resolve()
-        if not target.is_relative_to(root) or not target.is_file():
+        target = _resolve_within(root, request.match_info.get("path", ""))
+        if target is None:
             raise web.HTTPNotFound(text="not found\n")
-        return web.FileResponse(target)
+        return web.FileResponse(Path(target))
 
     return handler
 

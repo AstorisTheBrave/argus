@@ -46,14 +46,20 @@ def _extract_token(request: web.Request) -> str | None:
     return request.query.get("token")
 
 
+def _clean(value: str | None) -> str:
+    # Strip CR/LF and bound length so an untrusted value cannot forge log lines.
+    return (value or "?").replace("\r", "").replace("\n", "")[:128]
+
+
 def _remote(request: web.Request) -> str:
-    # Strip CR/LF so an untrusted peer address cannot forge log lines.
-    return (request.remote or "?").replace("\r", "").replace("\n", "")[:64]
+    return _clean(request.remote)[:64]
 
 
 def _auth_failure(kind: str, request: web.Request) -> None:
     """Log an auth failure so credential-stuffing / brute force is detectable."""
-    log.warning("argus %s auth failure for %s from %s", kind, request.path, _remote(request))
+    log.warning(
+        "argus %s auth failure for %s from %s", kind, _clean(request.path), _remote(request)
+    )
 
 
 def make_metrics_auth_middleware(token: str, metrics_path: str) -> Middleware:
