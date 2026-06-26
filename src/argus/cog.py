@@ -33,6 +33,7 @@ import contextlib
 import logging
 from collections.abc import Callable
 from typing import Any
+from urllib.parse import urlparse
 
 from discord.ext import commands
 
@@ -49,6 +50,21 @@ from argus.ergonomics import Telemetry
 from argus.history.sink import BatchingSink, EventSink, NullSink
 
 log = logging.getLogger("argus")
+
+
+def _grafana_frame_src(grafana_url: str | None) -> str | None:
+    """The Grafana origin (scheme://host[:port]) for the dashboard's CSP frame-src.
+
+    Embedding the Grafana tab needs its origin allowlisted in the page CSP; we add
+    only the scheme+host so the embed can load (Grafana must also permit framing,
+    e.g. allow_embedding). Returns None for an unset or malformed URL.
+    """
+    if not grafana_url:
+        return None
+    parsed = urlparse(grafana_url)
+    if parsed.scheme in ("http", "https") and parsed.netloc:
+        return f"{parsed.scheme}://{parsed.netloc}"
+    return None
 
 
 class ArgusCog(commands.Cog):
@@ -233,6 +249,7 @@ class ArgusCog(commands.Cog):
             self.config.metrics_path,
             dashboard=dashboard,
             middlewares=middlewares,
+            csp_frame_src=_grafana_frame_src(self.config.grafana_url),
         )
         self._runner = await start_server(app, self.config.host, self.config.port)
         log.info(
