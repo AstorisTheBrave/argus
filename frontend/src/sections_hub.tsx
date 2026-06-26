@@ -14,37 +14,40 @@ function EmptyState({ title, hint }: { title: string; hint: string }) {
   );
 }
 
+const GRAFANA_BOARDS: [string, string][] = [
+  ["Overview", "argus-overview"],
+  ["Interactions", "argus-interactions"],
+  ["Gateway", "argus-gateway"],
+];
+
 export function Grafana({ grafanaUrl }: { grafanaUrl: string | null }) {
+  const [board, setBoard] = useState("argus-overview");
   if (!grafanaUrl) {
     return (
       <EmptyState
         title="Grafana not configured"
-        hint="Pass grafana_url to Argus(bot) to link and embed your dashboards here."
+        hint="Pass grafana_url to Argus(bot) to embed your dashboards here."
       />
     );
   }
   const base = grafanaUrl.replace(/\/$/, "");
-  const boards: [string, string][] = [
-    ["Overview", "argus-overview"],
-    ["Interactions", "argus-interactions"],
-    ["Gateway", "argus-gateway"],
-  ];
   return (
-    <div className="section">
-      <div className="links">
-        {boards.map(([label, uid]) => (
-          <a
+    <div className="section grafana-section">
+      <div className="grafana-tabs">
+        {GRAFANA_BOARDS.map(([label, uid]) => (
+          <button
             key={uid}
-            className="nimble-glass--flat link"
-            href={`${base}/d/${uid}`}
-            target="_blank"
-            rel="noreferrer"
+            className={uid === board ? "grafana-tab active" : "grafana-tab"}
+            onClick={() => setBoard(uid)}
           >
-            {label} dashboard
-          </a>
+            {label}
+          </button>
         ))}
+        <a className="grafana-open" href={`${base}/d/${board}`} target="_blank" rel="noreferrer">
+          Open in Grafana ↗
+        </a>
       </div>
-      <iframe className="grafana-frame" title="Grafana" src={`${base}/d/argus-overview?kiosk`} />
+      <iframe className="grafana-frame" title="Grafana" src={`${base}/d/${board}?kiosk`} />
     </div>
   );
 }

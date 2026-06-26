@@ -12,6 +12,8 @@ import type { Frame } from "./useDashboard";
 
 const ACCENT = "#6aa8ff";
 const ACCENT2 = "#b48cff";
+const GREEN = "#4ade80";
+const RED = "#fb7185";
 
 function fmt(n: number): string {
   if (Number.isNaN(n)) return "-";
@@ -39,12 +41,9 @@ function levelData(frames: Frame[], pick: (s: Snapshot) => number): uPlot.Aligne
   return [xs, ys];
 }
 
-function rateData(frames: Frame[], pick: (s: Snapshot) => number): uPlot.AlignedData {
-  const t0 = frames.length > 0 ? frames[0].t : 0;
-  const xs: number[] = [];
+function rateSeries(frames: Frame[], pick: (s: Snapshot) => number): (number | null)[] {
   const ys: (number | null)[] = [];
   for (let i = 0; i < frames.length; i++) {
-    xs.push((frames[i].t - t0) / 1000);
     if (i === 0) {
       ys.push(null);
       continue;
@@ -53,8 +52,32 @@ function rateData(frames: Frame[], pick: (s: Snapshot) => number): uPlot.Aligned
     const dv = pick(frames[i].snap) - pick(frames[i - 1].snap);
     ys.push(dt > 0 ? Math.max(0, dv / dt) : null);
   }
-  return [xs, ys];
+  return ys;
 }
+
+function rateData(frames: Frame[], pick: (s: Snapshot) => number): uPlot.AlignedData {
+  const t0 = frames.length > 0 ? frames[0].t : 0;
+  const xs = frames.map((f) => (f.t - t0) / 1000);
+  return [xs, rateSeries(frames, pick)];
+}
+
+// Several rate series aligned on one time axis (Grafana multi-line panels).
+function multiRateData(
+  frames: Frame[],
+  picks: ((s: Snapshot) => number)[],
+): uPlot.AlignedData {
+  const t0 = frames.length > 0 ? frames[0].t : 0;
+  const xs = frames.map((f) => (f.t - t0) / 1000);
+  return [xs, ...picks.map((p) => rateSeries(frames, p))] as uPlot.AlignedData;
+}
+
+function levelMulti(frames: Frame[], picks: ((s: Snapshot) => number)[]): uPlot.AlignedData {
+  const t0 = frames.length > 0 ? frames[0].t : 0;
+  const xs = frames.map((f) => (f.t - t0) / 1000);
+  return [xs, ...picks.map((p) => frames.map((f) => p(f.snap)))] as uPlot.AlignedData;
+}
+
+const RATE1 = (s: number) => s.toFixed(1);
 
 function maxLatency(snap: Snapshot): number {
   const values = samples(snap, "discord_shard_latency_seconds").map((s) => s.value);
@@ -63,7 +86,14 @@ function maxLatency(snap: Snapshot): number {
 
 export function Overview({ latest, frames, cluster }: { latest: Snapshot; frames: Frame[]; cluster: string }) {
   const cl = clusterLabels(cluster);
-  const data = useMemo(() => levelData(frames, maxLatency), [frames]);
+  const latency = useMemo(() => levelData(frames, maxLatency), [frames]);
+  const population = useMemo(() => {
+    const labels = clusterLabels(cluster);
+    return levelMulti(frames, [
+      (s) => gaugeValue(s, "discord_guilds", labels),
+      (s) => gaugeValue(s, "discord_voice_clients", labels),
+    ]);
+  }, [frames, cluster]);
   return (
     <div className="section">
       <div className="grid">
@@ -82,7 +112,23 @@ export function Overview({ latest, frames, cluster }: { latest: Snapshot; frames
         />
         <StatCard label="Uptime" value={fmtUptime(gaugeValue(latest, "discord_uptime_seconds", cl))} />
       </div>
-      <LineChart title="Max shard latency (s)" data={data} series={[{ label: "latency", stroke: ACCENT }]} />
+      <div className="panel-grid">
+        <LineChart
+          title="Max shard latency"
+          unit="s"
+          data={latency}
+          series={[{ label: "latency", stroke: ACCENT }]}
+        />
+        <LineChart
+          title="Population"
+          format={(n) => String(Math.round(n))}
+          data={population}
+          series={[
+            { label: "guilds", stroke: ACCENT2 },
+            { label: "voice", stroke: GREEN },
+          ]}
+        />
+      </div>
     </div>
   );
 }
@@ -95,8 +141,16 @@ export function Interactions({ latest, frames }: { latest: Snapshot; frames: Fra
     samples(latest, "discord_app_command_duration_seconds"),
     "discord_app_command_duration_seconds",
   );
-  const data = useMemo(
+  const rate = useMemo(
     () => rateData(frames, (s) => counterTotal(s, "discord_interactions")),
+    [frames],
+  );
+  const outcomes = useMemo(
+    () =>
+      multiRateData(frames, [
+        (s) => counterTotal(s, "discord_app_commands", { status: "success" }),
+        (s) => counterTotal(s, "discord_app_commands", { status: "error" }),
+      ]),
     [frames],
   );
   return (
@@ -112,18 +166,41 @@ export function Interactions({ latest, frames }: { latest: Snapshot; frames: Fra
         />
         <StatCard label="Duration p95" value={fmt(histogramQuantile(0.95, buckets))} unit="s" />
       </div>
-      <LineChart
-        title="Interaction rate (per s)"
-        data={data}
-        series={[{ label: "interactions/s", stroke: ACCENT }]}
-      />
+      <div className="panel-grid">
+        <LineChart
+          title="Interaction rate"
+          unit="/s"
+          format={RATE1}
+          data={rate}
+          series={[{ label: "interactions/s", stroke: ACCENT }]}
+        />
+        <LineChart
+          title="App commands by outcome"
+          unit="/s"
+          format={RATE1}
+          data={outcomes}
+          series={[
+            { label: "success/s", stroke: GREEN },
+            { label: "error/s", stroke: RED },
+          ]}
+        />
+      </div>
     </div>
   );
 }
 
 export function Gateway({ latest, frames }: { latest: Snapshot; frames: Frame[] }) {
-  const data = useMemo(
+  const events = useMemo(
     () => rateData(frames, (s) => counterTotal(s, "discord_gateway_events")),
+    [frames],
+  );
+  const shardHealth = useMemo(
+    () =>
+      multiRateData(frames, [
+        (s) => counterTotal(s, "discord_shard_disconnects"),
+        (s) => counterTotal(s, "discord_shard_reconnects"),
+        (s) => counterTotal(s, "discord_ratelimits"),
+      ]),
     [frames],
   );
   return (
@@ -134,11 +211,26 @@ export function Gateway({ latest, frames }: { latest: Snapshot; frames: Frame[] 
         <StatCard label="Disconnects" value={fmt(counterTotal(latest, "discord_shard_disconnects"))} />
         <StatCard label="Reconnects" value={fmt(counterTotal(latest, "discord_shard_reconnects"))} />
       </div>
-      <LineChart
-        title="Gateway events (per s)"
-        data={data}
-        series={[{ label: "events/s", stroke: ACCENT2 }]}
-      />
+      <div className="panel-grid">
+        <LineChart
+          title="Gateway events"
+          unit="/s"
+          format={RATE1}
+          data={events}
+          series={[{ label: "events/s", stroke: ACCENT2 }]}
+        />
+        <LineChart
+          title="Shard health & rate limits"
+          unit="/s"
+          format={RATE1}
+          data={shardHealth}
+          series={[
+            { label: "disconnects/s", stroke: RED },
+            { label: "reconnects/s", stroke: GREEN },
+            { label: "ratelimits/s", stroke: ACCENT },
+          ]}
+        />
+      </div>
     </div>
   );
 }
