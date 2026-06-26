@@ -69,6 +69,27 @@ async def test_auth_gates_dashboard_not_metrics(aiohttp_client: Any) -> None:
     assert (await cfg.json())["auth_required"] is True
 
 
+async def test_serves_nimble_theme_assets(
+    aiohttp_client: Any, tmp_path: Any, monkeypatch: Any
+) -> None:
+    # The SPA pulls its Nimble theme from /nimble; the dashboard must serve it
+    # (regression: without the route the theme 404s and the UI looks unstyled).
+    static = tmp_path / "static"
+    (static / "nimble" / "assets").mkdir(parents=True)
+    (static / "index.html").write_text("<html></html>", encoding="utf-8")
+    (static / "nimble" / "styles.css").write_text("body{}", encoding="utf-8")
+    (static / "nimble" / "assets" / "aurora-dark.svg").write_text("<svg/>", encoding="utf-8")
+    monkeypatch.setattr("argus.dashboard.server.STATIC_DIR", static)
+
+    config = ArgusConfig.resolve(environ={})
+    registry = CollectorRegistry()
+    registrar = register_dashboard(config, registry=registry, version=argus.__version__)
+    client = await aiohttp_client(build_app(registry, config.metrics_path, dashboard=registrar))
+
+    assert (await client.get("/nimble/styles.css")).status == 200
+    assert (await client.get("/nimble/assets/aurora-dark.svg")).status == 200
+
+
 def test_path_collision_raises() -> None:
     with pytest.raises(ValueError, match="collides"):
         register_dashboard(
