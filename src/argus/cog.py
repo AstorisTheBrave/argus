@@ -31,6 +31,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import logging
+from collections.abc import Callable
 from typing import Any
 
 from discord.ext import commands
@@ -44,6 +45,7 @@ from argus.core.hooks import Registration, register
 from argus.core.instrumentation import Instrumentation
 from argus.core.loop_monitor import LoopMonitor
 from argus.core.metrics import bot_info_values, define_metrics
+from argus.ergonomics import Telemetry
 from argus.history.sink import BatchingSink, EventSink, NullSink
 
 log = logging.getLogger("argus")
@@ -86,6 +88,13 @@ class ArgusCog(commands.Cog):
         if isinstance(self.sink, BatchingSink):
             self.sink.set_drop_hook(self.instrumentation.count_dropped)
             self.sink.set_health_hook(self._set_sink_health)
+        # User-facing custom-metric / span helpers (argus.timed/timer/span/...).
+        self.telemetry = Telemetry(
+            self.registry,
+            self.config.namespace,
+            self.config.cluster_id or "default",
+            tracer=self._command_tracer,
+        )
         self.registry.set_info(self.names.bot_info, bot_info_values())
         self._runner: Any = None
         self._analytics_client: Any = None
@@ -328,3 +337,25 @@ class Argus:
             await bot.add_cog(self.cog)
 
         bot.setup_hook = setup_hook
+
+    # --- ergonomic instrumentation helpers (delegate to the cog's Telemetry) ---
+    @property
+    def telemetry(self) -> Telemetry:
+        """The custom-metric / span helper bound to this bot's registry."""
+        return self.cog.telemetry
+
+    def timed(self, name: str) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
+        """Decorator: time a sync/async callable into a histogram."""
+        return self.cog.telemetry.timed(name)
+
+    def timer(self, name: str) -> Any:
+        """Context manager: time the enclosed block into a histogram."""
+        return self.cog.telemetry.timer(name)
+
+    def count_exceptions(self, name: str) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
+        """Decorator: count exceptions raised by a sync/async callable."""
+        return self.cog.telemetry.count_exceptions(name)
+
+    def span(self, name: str) -> Any:
+        """Context manager: open an OpenTelemetry span (no-op if tracing is off)."""
+        return self.cog.telemetry.span(name)

@@ -127,6 +127,25 @@ Every option, precedence and parsing rule is in
 [Configuration](https://github.com/AstorisTheBrave/argus/wiki/Configuration).
 New here? Start with the [FAQ](https://github.com/AstorisTheBrave/argus/wiki/FAQ).
 
+## Instrumenting your own code
+
+Beyond the automatic metrics, time or trace arbitrary functions without touching
+the registry — works on sync and `async def`, and is fail-open:
+
+```python
+argus = Argus(bot)
+
+@argus.timed("nightly_job")          # histogram of duration
+@argus.count_exceptions("nightly_job")
+async def nightly_job(): ...
+
+with argus.timer("db_query"):        # time a block
+    ...
+
+with argus.span("expensive_step"):   # an OTLP span (no-op if tracing is off)
+    ...
+```
+
 ## Metrics
 
 Aggregate, bounded-cardinality metrics: per-shard latency and up state,
