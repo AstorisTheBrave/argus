@@ -38,6 +38,7 @@ from argus.core.collector import GaugeSample, MetricDef, MetricKind, MetricRegis
 if TYPE_CHECKING:
     from argus.config import ArgusConfig
     from argus.core.health import HealthState
+    from argus.core.loop_monitor import LoopMonitor
 
 # Duration buckets suited to Discord command flows: deferral, follow-ups, slow
 # handlers. +Inf is appended by the backend.
@@ -54,8 +55,10 @@ class MetricNames:
     # scrape-time gauges
     shard_latency_seconds: str
     shard_up: str
+    shard_ws_ratelimited: str
     shards_connected: str
     shards_configured: str
+    event_loop_lag_seconds: str
     guilds: str
     cached_users: str
     voice_clients: str
@@ -90,8 +93,10 @@ def build_names(namespace: str) -> MetricNames:
     return MetricNames(
         shard_latency_seconds=f"{ns}_shard_latency_seconds",
         shard_up=f"{ns}_shard_up",
+        shard_ws_ratelimited=f"{ns}_shard_ws_ratelimited",
         shards_connected=f"{ns}_shards_connected",
         shards_configured=f"{ns}_shards_configured",
+        event_loop_lag_seconds=f"{ns}_event_loop_lag_seconds",
         guilds=f"{ns}_guilds",
         cached_users=f"{ns}_cached_users",
         voice_clients=f"{ns}_voice_clients",
@@ -129,6 +134,7 @@ def define_metrics(
     bot: Any,
     config: ArgusConfig,
     health: HealthState | None = None,
+    loop_monitor: LoopMonitor | None = None,
 ) -> MetricNames:
     """Define every metric into ``registry``; return the resolved names.
 
@@ -154,6 +160,16 @@ def define_metrics(
         return [
             GaugeSample((str(sid),), 0.0 if s.is_closed() else 1.0) for sid, s in shards.items()
         ]
+
+    def shard_ws_ratelimited() -> list[GaugeSample]:
+        # 1 while the shard's gateway send is rate-limited (approaching the 120
+        # commands / 60s per-connection cap that disconnects on overstep).
+        shards = getattr(bot, "shards", None) or {}
+        out: list[GaugeSample] = []
+        for sid, s in shards.items():
+            fn = getattr(s, "is_ws_ratelimited", None)
+            out.append(GaugeSample((str(sid),), 1.0 if callable(fn) and fn() else 0.0))
+        return out
 
     def shards_connected() -> list[GaugeSample]:
         shards = getattr(bot, "shards", None)
@@ -197,6 +213,15 @@ def define_metrics(
             MetricKind.GAUGE,
             labelnames=("shard",),
             callback=shard_up,
+        )
+    )
+    registry.define(
+        MetricDef(
+            names.shard_ws_ratelimited,
+            "1 if the shard's gateway send is currently rate-limited, else 0.",
+            MetricKind.GAUGE,
+            labelnames=("shard",),
+            callback=shard_ws_ratelimited,
         )
     )
     registry.define(
@@ -297,6 +322,17 @@ def define_metrics(
             callback=lambda: [GaugeSample((), 1.0)],
         )
     )
+    if loop_monitor is not None:
+        registry.define(
+            MetricDef(
+                names.event_loop_lag_seconds,
+                "Event-loop scheduling lag in seconds (latest sample); high values "
+                "mean the bot is alive but blocking the loop.",
+                MetricKind.GAUGE,
+                labelnames=("cluster",),
+                callback=lambda: [GaugeSample((cluster,), loop_monitor.lag)],
+            )
+        )
     if health is not None:
 
         def subsystem_up() -> list[GaugeSample]:

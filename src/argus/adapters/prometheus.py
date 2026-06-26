@@ -78,13 +78,30 @@ class _GaugeCollector(Collector):
 
 
 class PrometheusAdapter(Adapter):
-    def __init__(self, registry: CollectorRegistry | None = None) -> None:
+    def __init__(
+        self, registry: CollectorRegistry | None = None, *, process_metrics: bool = False
+    ) -> None:
         self.registry = registry if registry is not None else CollectorRegistry()
         self._counters: dict[str, Counter] = {}
         self._histograms: dict[str, Histogram] = {}
         self._infos: dict[str, Info] = {}
         self._gauge_collector = _GaugeCollector()
         self.registry.register(self._gauge_collector)
+        if process_metrics:
+            self._register_process_metrics()
+
+    def _register_process_metrics(self) -> None:
+        """Register the standard process/runtime collectors (CPU, RSS, FDs, GC).
+
+        These are the first metrics looked at in an incident. Each is wrapped so a
+        platform that does not support one (e.g. ProcessCollector off Linux) never
+        breaks construction.
+        """
+        from prometheus_client import GCCollector, PlatformCollector, ProcessCollector
+
+        for factory in (ProcessCollector, PlatformCollector, GCCollector):
+            with contextlib.suppress(Exception):
+                factory(registry=self.registry)
 
     def set_scrape_error_hook(self, on_error: Callable[[str], None]) -> None:
         """Route scrape-time gauge failures to a counter (wired by the cog)."""

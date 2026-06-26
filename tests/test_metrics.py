@@ -16,6 +16,7 @@ from argus.core.metrics import (
 EXPECTED: dict[str, tuple[MetricKind, tuple[str, ...]]] = {
     "discord_shard_latency_seconds": (MetricKind.GAUGE, ("shard",)),
     "discord_shard_up": (MetricKind.GAUGE, ("shard",)),
+    "discord_shard_ws_ratelimited": (MetricKind.GAUGE, ("shard",)),
     "discord_shards_connected": (MetricKind.GAUGE, ("cluster",)),
     "discord_shards_configured": (MetricKind.GAUGE, ("cluster",)),
     "discord_guilds": (MetricKind.GAUGE, ("cluster",)),
