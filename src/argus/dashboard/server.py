@@ -168,6 +168,12 @@ def register_dashboard(
         assets_dir = STATIC_DIR / "assets"
         if assets_dir.is_dir():
             app.router.add_get(f"{mount}/assets/{{path:.*}}", make_asset_handler(assets_dir))
+        # The bundled SPA loads its Nimble theme (aurora background, glass tokens,
+        # fonts) from /nimble; without this route those requests 404 and the UI
+        # falls back to flat CSS defaults.
+        nimble_dir = STATIC_DIR / "nimble"
+        if nimble_dir.is_dir():
+            app.router.add_get(f"{mount}/nimble/{{path:.*}}", make_asset_handler(nimble_dir))
         app.router.add_get(config.dashboard_path, index)
 
     return registrar
