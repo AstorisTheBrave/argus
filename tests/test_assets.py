@@ -51,3 +51,13 @@ def test_rules_files_present() -> None:
         if not line.lstrip().startswith("#")
     )
     assert "clamp_min" not in expr_lines
+
+
+def test_compose_grafana_has_no_default_password_and_allows_embedding() -> None:
+    compose = (_ROOT / "docker-compose.yml").read_text(encoding="utf-8")
+    # The Grafana admin password must come from the environment with no shipped
+    # default (compose fails fast if unset) -- never a hardcoded "admin".
+    assert "GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD" in compose
+    assert "GF_SECURITY_ADMIN_PASSWORD: admin" not in compose
+    # Embedding must be enabled so the dashboard's Grafana tab can frame the boards.
+    assert "GF_SECURITY_ALLOW_EMBEDDING" in compose
