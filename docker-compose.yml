@@ -1,8 +1,13 @@
 # Prometheus + Grafana, fully provisioned. The bot is your own application and
 # stays out of compose; point prometheus/prometheus.yml at it (see that file).
 #
+#   cp .env.example .env   # then set GRAFANA_ADMIN_PASSWORD
 #   docker compose up -d
-#   open http://localhost:3000  (admin / admin)
+#   open http://localhost:3000  (admin / your password)
+#
+# There is no default Grafana password: GRAFANA_ADMIN_PASSWORD is required and
+# compose refuses to start without it. Set GRAFANA_ANONYMOUS=true for read-only
+# no-login viewing (lets the Argus dashboard embed Grafana without a login).
 #
 # Images are pinned so the committed dashboards' schemaVersion stays in step
 # with the Grafana that renders them.
@@ -32,9 +37,16 @@ services:
     depends_on:
       - prometheus
     environment:
-      GF_SECURITY_ADMIN_USER: admin
-      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      # No default: compose fails fast if GRAFANA_ADMIN_PASSWORD is unset.
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?set GRAFANA_ADMIN_PASSWORD in .env (no default password)}
       GF_USERS_ALLOW_SIGN_UP: "false"
+      # Allow the Argus dashboard's Grafana tab to embed these boards. Anonymous
+      # viewing is opt-in (GRAFANA_ANONYMOUS=true) so the embed needs no login.
+      GF_SECURITY_ALLOW_EMBEDDING: "true"
+      GF_AUTH_ANONYMOUS_ENABLED: ${GRAFANA_ANONYMOUS:-false}
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+      GF_SECURITY_COOKIE_SAMESITE: none
     volumes:
       - ./grafana/provisioning:/etc/grafana/provisioning:ro
       - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
