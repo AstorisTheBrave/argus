@@ -30,6 +30,10 @@ from argus.history.sink import BatchingSink, Event
 
 COLUMNS = ["ts", "event", "guild_id", "type", "command", "duration_ms", "cluster_id"]
 _NUMERIC = frozenset({"duration_ms"})
+# Durable, server-batched insert: async_insert lets ClickHouse coalesce writes
+# (avoiding the "too many parts" failure), and wait_for_async_insert=1 waits for
+# the durable write so a node crash mid-buffer cannot silently lose the batch.
+_INSERT_SETTINGS = {"async_insert": 1, "wait_for_async_insert": 1}
 
 ClientFactory = Callable[[], Awaitable[Any]]
 
@@ -97,7 +101,7 @@ class ClickHouseSink(BatchingSink):
     async def _flush(self, batch: list[Event]) -> None:
         client = await self._get_client()
         rows = [self._row(event) for event in batch]
-        await client.insert(self._table, rows, column_names=COLUMNS)
+        await client.insert(self._table, rows, column_names=COLUMNS, settings=_INSERT_SETTINGS)
 
     async def aclose(self) -> None:
         await super().aclose()

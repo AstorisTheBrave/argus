@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import logging
 from typing import Any
 
+import pytest
 from aiohttp import web
 
 from argus.dashboard.auth import make_auth_middleware, make_metrics_auth_middleware
@@ -77,3 +79,40 @@ async def test_metrics_auth_accepts_bearer_and_query(aiohttp_client: Any) -> Non
     assert bearer.status == 200
     assert (await client.get("/metrics", params={"token": "scrape-secret"})).status == 200
     assert (await client.get("/metrics", params={"token": "nope"})).status == 401
+
+
+async def test_dashboard_auth_failure_is_logged(
+    aiohttp_client: Any, caplog: pytest.LogCaptureFixture
+) -> None:
+    # A rejected request must leave a WARNING so brute force is detectable; a
+    # successful one must not.
+    client = await aiohttp_client(_app("secret"))
+    with caplog.at_level(logging.WARNING, logger="argus"):
+        assert (await client.get("/")).status == 401
+        assert (await client.get("/", headers={"Authorization": "Bearer secret"})).status == 200
+    failures = [r for r in caplog.records if "auth failure" in r.getMessage()]
+    assert len(failures) == 1
+    assert "dashboard" in failures[0].getMessage()
+
+
+async def test_metrics_auth_failure_is_logged(
+    aiohttp_client: Any, caplog: pytest.LogCaptureFixture
+) -> None:
+    client = await aiohttp_client(_metrics_app())
+    with caplog.at_level(logging.WARNING, logger="argus"):
+        assert (await client.get("/metrics")).status == 401
+    failures = [r for r in caplog.records if "auth failure" in r.getMessage()]
+    assert len(failures) == 1
+    assert "metrics" in failures[0].getMessage()
+
+
+async def test_crlf_in_remote_is_stripped_from_log() -> None:
+    # Defence against log forging: a peer address carrying CR/LF must be sanitised
+    # before it reaches the log line.
+    from argus.dashboard.auth import _remote
+
+    class _FakeReq:
+        remote = "1.2.3.4\r\nFAKE LOG LINE"
+
+    cleaned = _remote(_FakeReq())  # type: ignore[arg-type]
+    assert "\n" not in cleaned and "\r" not in cleaned

@@ -150,13 +150,26 @@ async def test_no_tracer_is_a_noop() -> None:
 
 
 async def test_oldest_span_is_evicted_and_ended(monkeypatch: Any) -> None:
-    monkeypatch.setattr("argus.core.instrumentation._MAX_PENDING", 1)
     tracer = FakeTracer()
     instr, _ = _instr(tracer)
+    instr._max_pending = 1  # tiny cap so the second span evicts the first
     await instr.on_interaction(_app_interaction(iid=1))
     await instr.on_interaction(_app_interaction(iid=2))  # evicts span 1
     # The evicted span was finished (ended) so it cannot leak.
     assert len(tracer.finished) == 1
+
+
+async def test_timer_eviction_increments_counter() -> None:
+    # When the in-flight timer map hits its cap, the oldest is evicted and the
+    # eviction is counted so a leak (or a too-small cap) is observable.
+    instr, backend = _instr(None)
+    instr._max_pending = 1
+    await instr.on_interaction(_app_interaction(iid=1))
+    await instr.on_interaction(_app_interaction(iid=2))  # evicts timer 1
+    evicted = sum(
+        v for (name, _labels), v in backend.counts.items() if name == "argus_timers_evicted_total"
+    )
+    assert evicted == 1.0
 
 
 # --- CommandTracer wrapper (env-independent: works with or without otel) ---

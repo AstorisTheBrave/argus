@@ -21,8 +21,15 @@ class FakeClient:
     async def command(self, sql: str) -> None:
         self.commands.append(sql)
 
-    async def insert(self, table: str, rows: list[Any], column_names: list[str]) -> None:
+    async def insert(
+        self,
+        table: str,
+        rows: list[Any],
+        column_names: list[str],
+        settings: dict[str, Any] | None = None,
+    ) -> None:
         self.inserts.append((table, rows, column_names))
+        self.insert_settings = settings or {}
 
     async def query(self, sql: str, parameters: dict[str, Any] | None = None) -> Any:
         self.queries.append((sql, parameters or {}))
@@ -54,6 +61,8 @@ async def test_sink_creates_table_then_batches_insert() -> None:
     # ts/command/cluster_id default to "", duration_ms is numeric (0.0 when absent).
     assert rows[0] == ["", "app_command", "1", "", "ping", 12.5, ""]
     assert rows[1] == ["", "interaction", "2", "x", "", 0.0, ""]
+    # Durable, server-batched insert settings are applied.
+    assert fake.insert_settings == {"async_insert": 1, "wait_for_async_insert": 1}
     assert fake.closed
 
 

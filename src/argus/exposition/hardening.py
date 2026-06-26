@@ -26,6 +26,7 @@ and sending the headers here removes the easy fingerprint either way.
 from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
+from pathlib import Path
 
 from aiohttp import web
 
@@ -47,6 +48,27 @@ _SECURITY_HEADERS = {
 }
 
 _ResponsePrepare = Callable[[web.Request, web.StreamResponse], Awaitable[None]]
+
+
+def make_asset_handler(
+    assets_dir: Path,
+) -> Callable[[web.Request], Awaitable[web.StreamResponse]]:
+    """Serve a file from ``assets_dir`` by path, refusing traversal outside it.
+
+    Used instead of ``web.static()`` for the bundled SPA: aiohttp's static helper
+    has carried path-disclosure / traversal CVEs (CVE-2024-23334, CVE-2025-69226),
+    so we resolve the request against the assets root and 404 anything that
+    escapes it.
+    """
+    root = assets_dir.resolve()
+
+    async def handler(request: web.Request) -> web.StreamResponse:
+        target = (root / request.match_info.get("path", "")).resolve()
+        if not target.is_relative_to(root) or not target.is_file():
+            raise web.HTTPNotFound(text="not found\n")
+        return web.FileResponse(target)
+
+    return handler
 
 
 def make_harden_response(banner: str) -> _ResponsePrepare:

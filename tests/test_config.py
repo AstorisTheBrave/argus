@@ -198,6 +198,18 @@ def test_log_format_default_and_env() -> None:
     assert ArgusConfig.resolve(log_format="json", environ={}).log_format == "json"
 
 
+def test_timer_cap_default_and_env() -> None:
+    assert ArgusConfig.resolve(environ={}).timer_cap == 10000
+    assert ArgusConfig.resolve(environ={"ARGUS_TIMER_CAP": "500"}).timer_cap == 500
+    assert ArgusConfig.resolve(timer_cap=42, environ={}).timer_cap == 42
+
+
+def test_process_metrics_default_on_and_env_opt_out() -> None:
+    assert ArgusConfig.resolve(environ={}).process_metrics is True
+    assert ArgusConfig.resolve(environ={"ARGUS_PROCESS_METRICS": "0"}).process_metrics is False
+    assert ArgusConfig.resolve(process_metrics=False, environ={}).process_metrics is False
+
+
 def test_port_falls_back_to_host_injected_vars() -> None:
     # Pterodactyl/PebbleHost set SERVER_PORT; Railway/PaaS set PORT.
     assert ArgusConfig.resolve(environ={"SERVER_PORT": "25570"}).port == 25570

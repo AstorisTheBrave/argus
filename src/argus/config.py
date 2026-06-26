@@ -40,6 +40,7 @@ DEFAULT_FLEET_STATE_DIR = "."
 DEFAULT_LOG_FORMAT = "text"
 DEFAULT_PUSHGATEWAY_JOB = "argus"
 DEFAULT_PUSHGATEWAY_INTERVAL = 15
+DEFAULT_TIMER_CAP = 10000
 
 _TRUE = frozenset({"1", "true", "yes", "on"})
 _FALSE = frozenset({"0", "false", "no", "off", ""})
@@ -73,6 +74,9 @@ class ArgusConfig:
     cluster_id: str | None = None
     namespace: str = DEFAULT_NAMESPACE
     enable_per_guild: bool = False
+    # Cap on in-flight command/interaction timers (and spans). Past this the
+    # oldest is evicted (counted in argus_timers_evicted_total) to bound memory.
+    timer_cap: int = DEFAULT_TIMER_CAP
     # Register the standard process/runtime collectors (CPU, RSS, FDs, GC). On by
     # default; disable on multiprocess deployments where they cannot work.
     process_metrics: bool = True
@@ -121,6 +125,7 @@ class ArgusConfig:
         cluster_id: str | None = None,
         namespace: str | None = None,
         enable_per_guild: bool | None = None,
+        timer_cap: int | None = None,
         process_metrics: bool | None = None,
         otlp_endpoint: str | None = None,
         enable_tracing: bool | None = None,
@@ -173,6 +178,7 @@ class ArgusConfig:
             enable_per_guild=cls._pick_bool(
                 enable_per_guild, env.get("ARGUS_ENABLE_PER_GUILD"), False
             ),
+            timer_cap=cls._pick_int(timer_cap, env.get("ARGUS_TIMER_CAP"), DEFAULT_TIMER_CAP),
             process_metrics=cls._pick_bool(process_metrics, env.get("ARGUS_PROCESS_METRICS"), True),
             otlp_endpoint=cls._pick_optional(otlp_endpoint, env.get("ARGUS_OTLP_ENDPOINT")),
             enable_tracing=cls._pick_bool(enable_tracing, env.get("ARGUS_ENABLE_TRACING"), False),

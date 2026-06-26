@@ -32,6 +32,7 @@ from typing import TYPE_CHECKING, Any
 from aiohttp import web
 
 from argus.dashboard.snapshot import build_snapshot
+from argus.exposition.hardening import make_asset_handler
 
 if TYPE_CHECKING:
     from prometheus_client import CollectorRegistry
@@ -166,7 +167,7 @@ def register_dashboard(
             app.router.add_get("/api/analytics/avg-duration", analytics_avg_duration)
         assets_dir = STATIC_DIR / "assets"
         if assets_dir.is_dir():
-            app.router.add_static(f"{mount}/assets/", assets_dir)
+            app.router.add_get(f"{mount}/assets/{{path:.*}}", make_asset_handler(assets_dir))
         app.router.add_get(config.dashboard_path, index)
 
     return registrar
