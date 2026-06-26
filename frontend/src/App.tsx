@@ -9,6 +9,7 @@ import { FleetApp } from "./fleet/FleetApp";
 import { clusters } from "./lib/select";
 import { Gateway, Interactions, Overview } from "./sections";
 import { Analytics, Grafana } from "./sections_hub";
+import { SetupWizard } from "./setup/SetupWizard";
 import { useDashboard } from "./useDashboard";
 
 function TokenPrompt({ onSubmit }: { onSubmit: (t: string) => void }) {
@@ -35,6 +36,12 @@ export function App() {
   const { config, latest, frames, token, setToken, authError } = useDashboard();
   const [active, setActive] = useState<SectionId>("overview");
   const [cluster, setCluster] = useState("*");
+
+  // The no-code setup wizard is reachable at #setup before any bot is running,
+  // so it must render ahead of the auth/config gates (it needs neither).
+  if (typeof window !== "undefined" && window.location.hash.replace(/^#\/?/, "") === "setup") {
+    return <SetupWizard />;
+  }
 
   if (authError && !token) {
     return <TokenPrompt onSubmit={setToken} />;

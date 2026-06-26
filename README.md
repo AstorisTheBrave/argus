@@ -166,6 +166,12 @@ gateway, your Grafana boards, and per-guild analytics. Reads metrics live over
 SSE with a polling fallback. Set `dashboard_auth_token` for anything public.
 See [Dashboard](https://github.com/AstorisTheBrave/argus/wiki/Dashboard).
 
+The same bundle also serves a no-code **setup wizard** at `/#setup`: a guided
+funnel that asks a few plain-language questions and generates a ready-to-run
+setup (`.env`, `bot.py`, and a Docker Compose / Railway / panel recipe) entirely
+in the browser — the bot token is never uploaded. See
+[Setup Wizard](https://github.com/AstorisTheBrave/argus/wiki/Setup-Wizard).
+
 ## Per-guild analytics
 
 Per-guild, per-user questions never go to Prometheus (cardinality). With
