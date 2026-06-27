@@ -1,5 +1,27 @@
 # Changelog
 
+## [0.4.3](https://github.com/AstorisTheBrave/argus/compare/v0.4.2...v0.4.3) (2026-06-26)
+
+
+### Features
+
+* **api:** ergonomic timed / timer / count_exceptions / span wrappers ([#68](https://github.com/AstorisTheBrave/argus/issues/68)) ([46d4d15](https://github.com/AstorisTheBrave/argus/commit/46d4d150b48ab8a69b862e16401c13568e9f5c34))
+* **dashboard:** Grafana-style panels, embedded board tabs, denser layout ([#74](https://github.com/AstorisTheBrave/argus/issues/74)) ([1037a45](https://github.com/AstorisTheBrave/argus/commit/1037a4550611b8cd25e3efccbafd7992134aa2c6))
+* **dashboard:** Setup nav tab and auto-loading analytics ([#75](https://github.com/AstorisTheBrave/argus/issues/75)) ([0bc1dae](https://github.com/AstorisTheBrave/argus/commit/0bc1dae0a8179f9bf914911bdf319a0ad68836d7))
+* **metrics:** process/runtime collectors, event-loop lag, ws rate-limit gauge ([#67](https://github.com/AstorisTheBrave/argus/issues/67)) ([bf2d1d9](https://github.com/AstorisTheBrave/argus/commit/bf2d1d9190a82665b89aba8cee6d8d23a7de0335))
+* **ops:** durable inserts, safe asset serving, bounded timers, auth logging ([#69](https://github.com/AstorisTheBrave/argus/issues/69)) ([1cd0a16](https://github.com/AstorisTheBrave/argus/commit/1cd0a162f9fe984b093bfc6739b086b87d19572a))
+* **setup:** no-code setup wizard in the dashboard SPA ([#72](https://github.com/AstorisTheBrave/argus/issues/72)) ([2d2ad13](https://github.com/AstorisTheBrave/argus/commit/2d2ad13cb702c8481ecedbb66fb33634048cb3f3))
+* **tracing:** OpenTelemetry spans per command/interaction lifecycle ([#60](https://github.com/AstorisTheBrave/argus/issues/60)) ([a1fb3d0](https://github.com/AstorisTheBrave/argus/commit/a1fb3d0f2fd683e4ca1ba06218d6e79578de637f))
+
+
+### Bug Fixes
+
+* **ci:** make frontend native binding install deterministic ([#70](https://github.com/AstorisTheBrave/argus/issues/70)) ([94137a7](https://github.com/AstorisTheBrave/argus/commit/94137a7dddcd2c38df831523a61b442777233034))
+* **compose:** require a Grafana password and enable dashboard embedding ([#77](https://github.com/AstorisTheBrave/argus/issues/77)) ([e87f821](https://github.com/AstorisTheBrave/argus/commit/e87f82108540c1bdc3c9cbac2d691b50f22b87d2))
+* **dashboard:** allow embedding the configured Grafana in the page CSP ([#76](https://github.com/AstorisTheBrave/argus/issues/76)) ([b957171](https://github.com/AstorisTheBrave/argus/commit/b957171b41efe1e91d1f392709eb433cc9ce7827))
+* **dashboard:** serve the bundled Nimble theme from /nimble ([#73](https://github.com/AstorisTheBrave/argus/issues/73)) ([6d26142](https://github.com/AstorisTheBrave/argus/commit/6d261426ada62db4cddb6cbd816c398063edfa3a))
+* **deps:** pin aiohttp &gt;= 3.14.1 and add a ClickHouse-injection regression test ([#66](https://github.com/AstorisTheBrave/argus/issues/66)) ([c553531](https://github.com/AstorisTheBrave/argus/commit/c553531611e91c5d0b28102a21f7c048d171ddfb))
+
 ## [0.4.2](https://github.com/AstorisTheBrave/argus/compare/v0.4.1...v0.4.2) (2026-06-21)
 
 
